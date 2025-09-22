@@ -1,0 +1,31 @@
+{
+  "manifest_version": 3,
+  "name": "Knowledge Cards",
+  "version": "1.0.0",
+  "description": "Simple knowledge management with AI",
+
+  "permissions": [
+    "storage",
+    "tabs",
+    "activeTab",
+    "sidePanel",
+    "contextMenus"
+  ],
+
+  "host_permissions": ["<all_urls>"],
+
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
+
+  "action": {
+    "default_title": "Open Knowledge Cards"
+  },
+
+  "side_panel": {
+    "default_path": "index.html"
+  }
+
+
+}
