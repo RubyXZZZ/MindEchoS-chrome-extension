@@ -1,9 +1,11 @@
+
+
 import React, { useState, useRef, useEffect } from 'react';
 import { Sparkles, ArrowUp, MessageSquare, Layers, Brain, Paperclip } from 'lucide-react';
 import { useStore } from '../store';
 import { ChatMessage } from '../types/chat.types';
 import { formatTime } from '../utils/formatters';
-import { ChromeAIService } from '../services/ai/chromeAI';
+import { PromptsAI } from '../services/ai/promptsAI';
 
 export const ChatView: React.FC = () => {
     const {
@@ -39,9 +41,19 @@ export const ChatView: React.FC = () => {
 
         // Get AI response
         try {
-            const response = await ChromeAIService.prompt(
+            // Get selected cards data for context
+            const selectedCards = chatMode === 'cards'
+                ? cards.filter(card => selectedCardsForChat.includes(card.id))
+                : undefined;
+
+            // Use PromptsAI service instead of ChromeAIService
+            const response = await PromptsAI.generateResponse(
                 inputMessage,
-                chatMode === 'cards' ? JSON.stringify(selectedCardsForChat) : undefined
+                {
+                    mode: chatMode,
+                    cards: selectedCards,
+                    history: messages.slice(-10)
+                }
             );
 
             setIsTyping(false);
@@ -55,6 +67,13 @@ export const ChatView: React.FC = () => {
         } catch (error) {
             setIsTyping(false);
             console.error('AI response error:', error);
+            addMessage({
+                id: (Date.now() + 1).toString(),
+                role: 'assistant',
+                content: '抱歉，获取回复时出现错误。请稍后再试。',
+                timestamp: Date.now(),
+                status: 'error'
+            });
         }
     };
 
@@ -73,6 +92,21 @@ export const ChatView: React.FC = () => {
                 status: 'sent'
             });
         }
+    }, []);
+
+    // Load selected cards from navigation
+    useEffect(() => {
+        if (selectedCardsForChat && selectedCardsForChat.length > 0 && chatMode !== 'cards') {
+            setChatMode('cards');
+            setShowCardSelection(false);
+        }
+    }, [selectedCardsForChat]);
+
+    // Clean up AI service on unmount
+    useEffect(() => {
+        return () => {
+            PromptsAI.destroy();
+        };
     }, []);
 
     return (
@@ -103,14 +137,16 @@ export const ChatView: React.FC = () => {
                                 <div className={`px-4 py-2.5 text-sm ${
                                     msg.role === 'user'
                                         ? 'bg-emerald-100 text-gray-800 rounded-2xl rounded-br-sm shadow-sm'
-                                        : 'bg-white/90 text-gray-800 rounded-2xl rounded-bl-sm shadow-sm border border-gray-100'
+                                        : msg.status === 'error'
+                                            ? 'bg-red-50 text-red-800 rounded-2xl rounded-bl-sm shadow-sm border border-red-200'
+                                            : 'bg-white/90 text-gray-800 rounded-2xl rounded-bl-sm shadow-sm border border-gray-100'
                                 }`}>
                                     <p className="whitespace-pre-wrap">{msg.content}</p>
                                 </div>
                                 <div className={`mt-1 px-1 ${msg.role === 'user' ? 'text-right' : ''}`}>
-                  <span className="text-[10px] text-gray-400">
-                    {formatTime(msg.timestamp)}
-                  </span>
+                                    <span className="text-[10px] text-gray-400">
+                                        {formatTime(msg.timestamp)}
+                                    </span>
                                 </div>
                             </div>
                         </div>
@@ -196,8 +232,8 @@ export const ChatView: React.FC = () => {
                                 卡片对话
                                 {selectedCardsForChat.length > 0 && (
                                     <span className="px-1.5 py-0.5 bg-emerald-500 text-white text-[10px] rounded-full">
-                    {selectedCardsForChat.length}
-                  </span>
+                                        {selectedCardsForChat.length}
+                                    </span>
                                 )}
                             </button>
                             <button
@@ -218,28 +254,28 @@ export const ChatView: React.FC = () => {
 
                         {/* Input Field */}
                         <div className="px-3 py-2">
-              <textarea
-                  placeholder={
-                      chatMode === 'mindmap'
-                          ? "描述你想要生成的思维导图主题..."
-                          : chatMode === 'cards' && selectedCardsForChat.length > 0
-                              ? "基于选中的卡片提问..."
-                              : chatMode === 'cards'
-                                  ? "请先选择相关的知识卡片..."
-                                  : "输入消息..."
-                  }
-                  className="w-full text-sm focus:outline-none resize-none text-gray-700 placeholder-gray-400"
-                  value={inputMessage}
-                  onChange={(e) => setInputMessage(e.target.value)}
-                  onKeyPress={(e) => {
-                      if (e.key === 'Enter' && !e.shiftKey) {
-                          e.preventDefault();
-                          handleSend();
-                      }
-                  }}
-                  rows={1}
-                  disabled={chatMode === 'cards' && selectedCardsForChat.length === 0}
-              />
+                            <textarea
+                                placeholder={
+                                    chatMode === 'mindmap'
+                                        ? "描述你想要生成的思维导图主题..."
+                                        : chatMode === 'cards' && selectedCardsForChat.length > 0
+                                            ? "基于选中的卡片提问..."
+                                            : chatMode === 'cards'
+                                                ? "请先选择相关的知识卡片..."
+                                                : "输入消息..."
+                                }
+                                className="w-full text-sm focus:outline-none resize-none text-gray-700 placeholder-gray-400"
+                                value={inputMessage}
+                                onChange={(e) => setInputMessage(e.target.value)}
+                                onKeyPress={(e) => {
+                                    if (e.key === 'Enter' && !e.shiftKey) {
+                                        e.preventDefault();
+                                        handleSend();
+                                    }
+                                }}
+                                rows={1}
+                                disabled={chatMode === 'cards' && selectedCardsForChat.length === 0}
+                            />
                         </div>
 
                         {/* Actions Bar */}

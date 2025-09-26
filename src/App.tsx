@@ -1,15 +1,16 @@
 
-import {useEffect, useState} from 'react';
-import {useStore} from "./sidepanel/store";
-import {NavigationBar} from './sidepanel/components/layout/NavigationBar';
-import {FloatingActionButton} from './sidepanel/components/layout/FloatingActionButton';
-import {AddCardModal} from './sidepanel/components/modals/AddCardModal';
-import {CardsView} from './sidepanel/views/CardsView';
-import {ChatView} from './sidepanel/views/ChatView';
-import {ChromeStorageService} from './sidepanel/services/storage/chromeStorage';
-import {ChromeAIService} from './sidepanel/services/ai/chromeAI';
-import {KnowledgeCard} from "./sidepanel/types/card.types.ts";
-import {CARD_COLORS} from './sidepanel/utils/constants';
+
+import { useEffect, useState } from 'react';
+import { useStore } from './sidepanel/store';
+import { NavigationBar } from './sidepanel/components/layout/NavigationBar';
+import { FloatingActionButton } from './sidepanel/components/layout/FloatingActionButton';
+import { AddCardModal } from './sidepanel/components/modals/AddCardModal';
+import { CardsView } from './sidepanel/views/CardsView';
+import { ChatView } from './sidepanel/views/ChatView';
+import { ChromeStorageService } from './sidepanel/services/storage/chromeStorage';
+import { AIService } from './sidepanel/services/ai/aiService';
+import { KnowledgeCard } from './sidepanel/types/card.types';
+import { CARD_COLORS } from './sidepanel/utils/constants';
 
 // Sample data for development
 const SAMPLE_CARDS: KnowledgeCard[] = [
@@ -20,11 +21,9 @@ const SAMPLE_CARDS: KnowledgeCard[] = [
         content: '详细的React Hooks使用指南和最佳实践。useEffect的依赖数组管理是关键，避免无限循环。useCallback和useMemo用于性能优化，但不要过度使用。自定义Hook可以复用状态逻辑。',
         url: 'https://react.dev/learn/hooks',
         timestamp: Date.now() - 3600000,
-        priority: 1,
         tags: ['React', 'Frontend', 'JavaScript', 'Hooks'],
         category: 'Technology',
         color: CARD_COLORS[0],
-        source: 'webpage',
     },
     {
         id: '2',
@@ -33,11 +32,9 @@ const SAMPLE_CARDS: KnowledgeCard[] = [
         content: 'TypeScript泛型的深入解析。TypeScript泛型提供了代码复用性，可以创建灵活的组件和函数。约束泛型、条件类型等高级特性让类型系统更强大。',
         url: 'https://www.typescriptlang.org/docs/handbook/2/generics.html',
         timestamp: Date.now() - 7200000,
-        priority: 2,
         tags: ['TypeScript', 'Programming', 'Types'],
         category: 'Technology',
         color: CARD_COLORS[1],
-        source: 'selection',
     },
     {
         id: '3',
@@ -46,11 +43,9 @@ const SAMPLE_CARDS: KnowledgeCard[] = [
         content: '产品设计方法论完整指南。好的产品设计要从用户需求出发，关注用户旅程的每个触点。数据驱动决策，但也要平衡定性和定量分析。',
         url: 'https://example.com/product-design',
         timestamp: Date.now() - 86400000,
-        priority: 3,
         tags: ['Product', 'UX', 'Design'],
         category: 'Design',
         color: CARD_COLORS[2],
-        source: 'manual',
     }
 ];
 
@@ -59,11 +54,28 @@ function App() {
     const [isLoading, setIsLoading] = useState(true);
     const [tailwindTest, setTailwindTest] = useState(true);
 
+    // State for manage mode
+    const [manageModeState, setManageModeState] = useState({
+        isManageMode: false,
+        selectedCards: [] as string[]
+    });
+
+    // Handle card selection in manage mode
+    const handleCardSelect = (cardId: string) => {
+        setManageModeState(prev => ({
+            ...prev,
+            selectedCards: prev.selectedCards.includes(cardId)
+                ? prev.selectedCards.filter(id => id !== cardId)
+                : [...prev.selectedCards, cardId]
+        }));
+    };
+
     useEffect(() => {
         const initializeApp = async () => {
             try {
-                // Initialize Chrome AI services
-                await ChromeAIService.initialize();
+                // Check AI availability (no need to initialize)
+                const availability = await AIService.checkAvailability();
+                console.log('AI Services available:', availability);
 
                 // Load saved cards from storage
                 const savedCards = await ChromeStorageService.loadCards();
@@ -136,16 +148,26 @@ function App() {
     // Main App
     return (
         <div className="h-screen flex flex-col bg-gradient-to-br from-gray-50/80 via-white/50 to-gray-100/80 backdrop-blur-md">
-            {/* Navigation */}
-            <NavigationBar />
+            {/* Navigation with manage mode state */}
+            <NavigationBar
+                manageModeState={manageModeState}
+                onManageModeChange={setManageModeState}
+            />
 
             {/* Main Content */}
             <div className="flex-1 overflow-hidden relative">
-                {currentView === 'cards' ? <CardsView /> : <ChatView />}
+                {currentView === 'cards' ? (
+                    <CardsView
+                        manageModeState={manageModeState}
+                        onCardSelect={handleCardSelect}
+                    />
+                ) : (
+                    <ChatView />
+                )}
             </div>
 
-            {/* Floating Action Button */}
-            <FloatingActionButton />
+            {/* Floating Action Button - only show in cards view */}
+            {currentView === 'cards' && <FloatingActionButton />}
 
             {/* Add Card Modal */}
             <AddCardModal />
@@ -153,7 +175,7 @@ function App() {
             {/* Debug Info (Development Only) */}
             {process.env.NODE_ENV === 'development' && (
                 <div className="fixed bottom-2 left-2 bg-black/80 text-white text-xs px-2 py-1 rounded-lg z-50">
-                    Cards: {cards.length} | View: {currentView}
+                    Cards: {cards.length} | View: {currentView} | Selected: {manageModeState.selectedCards.length}
                 </div>
             )}
         </div>

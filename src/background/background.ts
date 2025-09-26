@@ -1,113 +1,84 @@
+// Helper function to save card directly
+// Helper function to save card directly
+async function saveCard(card: any) {
+    const storage = await chrome.storage.local.get('knowledge_cards');
+    const cards = storage.knowledge_cards || [];
+    cards.unshift({
+        id: Date.now().toString(),
+        ...card,
+        timestamp: Date.now()
+    });
+    await chrome.storage.local.set({ knowledge_cards: cards });
+}
 
-// Background script for Chrome extension
+// Context menus
 chrome.runtime.onInstalled.addListener(() => {
-    console.log('Knowledge Manager Extension installed');
-
-    // Set up context menu for text selection
     chrome.contextMenus.create({
-        id: 'capture-selection',
-        title: 'Save to Knowledge Cards',
+        id: 'save-selection',
+        title: '保存到知识卡片',
         contexts: ['selection']
+    });
+
+    chrome.contextMenus.create({
+        id: 'summarize-page',
+        title: '总结页面到卡片',
+        contexts: ['page']
     });
 });
 
 // Handle context menu clicks
 chrome.contextMenus.onClicked.addListener(async (info, tab) => {
-    if (info.menuItemId === 'capture-selection' && info.selectionText) {
-        // Send selected text to sidepanel
-        await chrome.storage.local.set({
-            pendingCapture: {
-                type: 'selection',
-                content: info.selectionText,
-                url: tab?.url || '',
-                title: tab?.title || 'Selected Text',
-                timestamp: Date.now()
-            }
+    if (!tab?.id) return;
+
+    if (info.menuItemId === 'save-selection' && info.selectionText) {
+        await saveCard({
+            title: `Selection from ${tab.title}`,
+            content: info.selectionText,
+            summary: info.selectionText.substring(0, 100),
+            url: tab.url,
+            tags: [],
+            category: 'Technology'
         });
 
-        // Open sidepanel - check if windowId exists
-        if (tab?.windowId !== undefined) {
-            await chrome.sidePanel.open({ windowId: tab.windowId });
-        } else {
-            // Fallback: get current window
-            const currentWindow = await chrome.windows.getCurrent();
-            if (currentWindow.id !== undefined) {
-                await chrome.sidePanel.open({ windowId: currentWindow.id });
-            }
+    } else if (info.menuItemId === 'summarize-page') {
+        const response = await chrome.tabs.sendMessage(tab.id, {
+            type: 'EXTRACT_CONTENT'
+        });
+
+        if (response.success) {
+            await saveCard({
+                title: response.title,
+                content: response.content,
+                summary: response.content.substring(0, 100),
+                url: response.url,
+                tags: [],
+                category: 'Technology'
+            });
         }
     }
 });
 
-// Handle messages from content scripts or popup
-chrome.runtime.onMessage.addListener((request, _sender, sendResponse) => {
-    if (request.action === 'capturePageContent') {
-        // Capture current page content
-        chrome.tabs.query({ active: true, currentWindow: true }, async (tabs) => {
-            const tab = tabs[0];
-            if (tab.id) {
-                try {
-                    // Inject content script to capture page
-                    const results = await chrome.scripting.executeScript({
-                        target: { tabId: tab.id },
-                        func: capturePageContent,
-                    });
-
-                    sendResponse(results[0].result);
-                } catch (error) {
-                    console.error('Failed to capture page content:', error);
-                    sendResponse(null);
-                }
-            }
-        });
-        return true; // Keep message channel open
-    }
-
-    if (request.action === 'summarizeContent') {
-        // This will use Chrome's AI APIs when available
-        handleSummarization(request.content).then(sendResponse);
-        return true;
+// Forward messages from content script to popup/sidepanel
+// Use underscore prefix to indicate sender is intentionally unused
+chrome.runtime.onMessage.addListener((message, _sender) => {
+    if (message.type === 'CAPTURE_SELECTION') {
+        // Forward to popup/sidepanel
+        chrome.runtime.sendMessage(message);
     }
 });
 
-// Function to capture page content (injected into page)
-function capturePageContent() {
-    const content = document.body.innerText || '';
-    const title = document.title;
-    const url = window.location.href;
-    const metaDescription = document.querySelector('meta[name="description"]')?.getAttribute('content') || '';
+// Keep service worker alive
+chrome.runtime.onConnect.addListener((port) => {
+    if (port.name === 'keepAlive') {
+        port.onDisconnect.addListener(() => {
+            // Port disconnected, service worker will stay alive
+        });
+    }
+});
 
-    return {
-        title,
-        url,
-        content: content.substring(0, 5000), // Limit content length
-        description: metaDescription,
-        timestamp: Date.now()
-    };
-}
-
-// Handle AI summarization (placeholder for Chrome AI API)
-async function handleSummarization(content: string) {
-    // When Chrome AI APIs are available:
-    // const session = await ai.summarizer.create();
-    // const summary = await session.summarize(content);
-
-    // Mock implementation for now
-    return {
-        summary: content.substring(0, 200) + '...',
-        keyPoints: ['Point 1', 'Point 2', 'Point 3']
-    };
-}
-
-// Handle sidepanel action button click
+// Handle extension icon click to open sidepanel
 chrome.action.onClicked.addListener(async (tab) => {
-    // Open sidepanel when extension icon is clicked
-    if (tab.windowId !== undefined) {
-        await chrome.sidePanel.open({ windowId: tab.windowId });
-    } else {
-        // Fallback: get current window
-        const currentWindow = await chrome.windows.getCurrent();
-        if (currentWindow.id !== undefined) {
-            await chrome.sidePanel.open({ windowId: currentWindow.id });
-        }
+    if (tab?.id) {
+        await chrome.sidePanel.open({ tabId: tab.id });
     }
 });

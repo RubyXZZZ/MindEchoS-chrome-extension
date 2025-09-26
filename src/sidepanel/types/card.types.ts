@@ -6,7 +6,6 @@ export interface KnowledgeCard {
     content: string;
     url: string;
     timestamp: number;
-    priority: 1 | 2 | 3 | 4 | 5;
     tags: string[];
     category?: string;
     relatedCards?: string[];

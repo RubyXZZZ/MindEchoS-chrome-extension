@@ -1,297 +1,168 @@
-import React, { useState } from 'react';
-import { Clock, Link2, Edit2, Trash2, Save, X, GripVertical } from 'lucide-react';
+import React from 'react';
+import { Clock, Link, Trash2, Edit2, ChevronDown, ChevronUp } from 'lucide-react';
 import { KnowledgeCard } from '../../types/card.types';
-import { formatDate, getHostname } from '../../utils/formatters';
 import { useStore } from '../../store';
+import { formatTime } from '../../utils/formatters';
 
 interface CardItemProps {
     card: KnowledgeCard;
-    index: number;
-    isDragOver: boolean;
-    onDragStart: (e: React.DragEvent, cardId: string) => void;
-    onDragOver: (e: React.DragEvent, index: number) => void;
-    onDrop: (e: React.DragEvent, index: number) => void;
-    isLastVisible?: boolean;
+    isManageMode: boolean;
+    isSelected: boolean;
+    onSelect: (cardId: string) => void;
+    isExpanded: boolean;
+    onExpand: () => void;
+    isOverlapping?: boolean;
 }
 
 export const CardItem: React.FC<CardItemProps> = ({
                                                       card,
-                                                      index,
-                                                      isDragOver,
-                                                      onDragStart,
-                                                      onDragOver,
-                                                      onDrop,
-                                                      isLastVisible = false,
+                                                      isManageMode,
+                                                      isSelected,
+                                                      onSelect,
+                                                      isExpanded,
+                                                      onExpand,
+                                                      isOverlapping = false
                                                   }) => {
-    const {
-        expandedCard,
-        setExpandedCard,
-        editingCard,
-        setEditingCard,
-        updateCard,
-        deleteCard
-    } = useStore();
+    const { deleteCard, setEditingCard, setShowAddModal } = useStore();
 
-    const [editContent, setEditContent] = useState('');
-    const [additionalContent, setAdditionalContent] = useState('');
-    const [hoveredCard, setHoveredCard] = useState(false);
-
-    const isExpanded = expandedCard === card.id;
-    const isEditing = editingCard === card.id;
-
-    const handleEditSave = () => {
-        let newContent = editContent;
-        if (additionalContent.trim()) {
-            newContent += '\n\n' + additionalContent.trim();
-        }
-        const newSummary = newContent.substring(0, 100) + (newContent.length > 100 ? '...' : '');
-
-        updateCard(card.id, {
-            content: newContent,
-            summary: newSummary
-        });
-
-        setEditingCard(null);
-        setEditContent('');
-        setAdditionalContent('');
-    };
-
-    const handleDelete = () => {
+    const handleDelete = (e: React.MouseEvent) => {
+        e.stopPropagation();
         if (window.confirm('确定要删除这张卡片吗？')) {
             deleteCard(card.id);
-            setExpandedCard(null);
         }
     };
 
-    const handleCardClick = () => {
-        if (!isEditing) {
-            setExpandedCard(isExpanded ? null : card.id);
-        }
-    };
-
-    const handleEditStart = (e: React.MouseEvent) => {
+    const handleEdit = (e: React.MouseEvent) => {
         e.stopPropagation();
         setEditingCard(card.id);
-        setEditContent(card.content);
+        setShowAddModal(true);
+    };
+
+    // const handleCheckboxClick = (e: React.MouseEvent) => {
+    //     e.stopPropagation();
+    //     onSelect(card.id);
+    // };
+
+    const handleCardClick = () => {
+        if (!isManageMode && isOverlapping) {
+            onExpand();
+        }
     };
 
     return (
         <div
-            className={`transition-all duration-500 cursor-pointer ${
-                isDragOver ? 'opacity-50' : ''
-            } ${hoveredCard && !isExpanded ? 'transform -translate-y-0.5' : ''}`}
-            draggable={!isExpanded && !isEditing}
-            onDragStart={(e) => onDragStart(e, card.id)}
-            onDragOver={(e) => onDragOver(e, index)}
-            onDrop={(e) => onDrop(e, index)}
-            onMouseEnter={() => setHoveredCard(true)}
-            onMouseLeave={() => setHoveredCard(false)}
+            className={`
+        ${card.color} 
+        rounded-xl shadow-lg hover:shadow-xl transition-all border border-white/50 
+        ${isExpanded ? 'scale-[1.02] shadow-2xl ring-2 ring-emerald-500/50' : ''} 
+        ${isOverlapping && !isManageMode ? 'cursor-pointer' : ''}
+        backdrop-blur-sm bg-opacity-90
+      `}
             onClick={handleCardClick}
         >
-            <div className={`bg-white rounded-2xl border border-gray-200 overflow-hidden transition-all ${
-                isExpanded ? 'shadow-2xl' : 'shadow-lg hover:shadow-xl'
-            }`}>
-                {/* Card Header */}
-                <div className={`${card.color} ${isExpanded ? 'p-4' : 'p-3'} transition-all`}>
-                    <div className="flex items-start justify-between">
-                        <div className="flex items-center gap-2 flex-1">
-                            {!isExpanded && !isEditing && (
-                                <GripVertical className="w-4 h-4 text-gray-500 cursor-move" />
-                            )}
-                            <h3 className={`font-semibold text-gray-800 flex-1 ${
-                                isExpanded ? 'text-base' : 'text-sm'
-                            }`}>
-                                {card.title}
-                            </h3>
-                        </div>
+            <div className="p-4">
+                {/* Header */}
+                <div className="flex items-start justify-between mb-2">
+                    {/* Left side - Checkbox and Title */}
+                    <div className="flex items-start flex-1">
+                        {/* Checkbox in manage mode */}
+                        {isManageMode && (
+                            <label className="flex items-center mt-1 mr-2">
+                                <input
+                                    type="checkbox"
+                                    checked={isSelected}
+                                    onChange={(e) => {
+                                        e.stopPropagation();
+                                        onSelect(card.id);
+                                    }}
+                                    onClick={(e) => e.stopPropagation()}
+                                    className="w-4 h-4 rounded border-gray-300 text-emerald-500 focus:ring-emerald-500 focus:ring-offset-0 cursor-pointer"
+                                />
+                            </label>
+                        )}
 
-                        {isExpanded && (
-                            <div className="flex items-center gap-1">
-                                {!isEditing ? (
-                                    <>
-                                        <button
-                                            onClick={handleEditStart}
-                                            className="p-1 hover:bg-white/30 rounded-lg transition-colors"
-                                        >
-                                            <Edit2 className="w-4 h-4 text-gray-600" />
-                                        </button>
-                                        <button
-                                            onClick={(e) => {
-                                                e.stopPropagation();
-                                                handleDelete();
-                                            }}
-                                            className="p-1 hover:bg-white/30 rounded-lg transition-colors"
-                                        >
-                                            <Trash2 className="w-4 h-4 text-red-600" />
-                                        </button>
-                                    </>
-                                ) : (
-                                    <button
-                                        onClick={(e) => {
-                                            e.stopPropagation();
-                                            handleEditSave();
-                                        }}
-                                        className="p-1 hover:bg-white/30 rounded-lg transition-colors"
-                                    >
-                                        <Save className="w-4 h-4 text-green-600" />
-                                    </button>
-                                )}
+                        <h3 className="text-sm font-semibold text-gray-900 flex-1">
+                            {card.title}
+                        </h3>
+                    </div>
+
+                    {/* Right side - Category */}
+                    <span className="px-2 py-0.5 bg-white/60 rounded-full text-gray-700 font-medium text-[10px] ml-2">
+            {card.category || 'Other'}
+          </span>
+                </div>
+
+                {/* Summary (always visible) */}
+                <p className="text-xs text-gray-700 mb-2 line-clamp-2">
+                    {card.summary}
+                </p>
+
+                {/* Full Content (only when expanded) */}
+                {isExpanded && (
+                    <div className="mt-3 pt-3 border-t border-gray-200/50">
+                        <div className="text-xs text-gray-700 whitespace-pre-wrap max-h-64 overflow-y-auto">
+                            {card.content}
+                        </div>
+                    </div>
+                )}
+
+                {/* Footer */}
+                <div className="flex items-center justify-between text-[10px] text-gray-600 mt-3">
+                    {/* Left side - Time and URL */}
+                    <div className="flex items-center gap-2">
+            <span className="flex items-center gap-0.5">
+              <Clock className="w-3 h-3" />
+                {formatTime(card.timestamp)}
+            </span>
+                        {card.url && (
+                            <a
+                                href={card.url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="flex items-center gap-0.5 hover:text-blue-600"
+                                onClick={(e) => e.stopPropagation()}
+                            >
+                                <Link className="w-3 h-3" />
+                            </a>
+                        )}
+                    </div>
+
+                    {/* Right side - Actions */}
+                    {!isManageMode && (
+                        <div className="flex items-center gap-1">
+                            <button
+                                onClick={handleEdit}
+                                className="p-1 hover:bg-white/50 rounded transition-colors"
+                                title="编辑"
+                            >
+                                <Edit2 className="w-3.5 h-3.5 text-gray-600" />
+                            </button>
+                            <button
+                                onClick={handleDelete}
+                                className="p-1 hover:bg-white/50 rounded transition-colors"
+                                title="删除"
+                            >
+                                <Trash2 className="w-3.5 h-3.5 text-red-500" />
+                            </button>
+                            {isOverlapping && (
                                 <button
                                     onClick={(e) => {
                                         e.stopPropagation();
-                                        setExpandedCard(null);
-                                        setEditingCard(null);
+                                        onExpand();
                                     }}
-                                    className="p-1 hover:bg-white/30 rounded-lg transition-colors"
+                                    className="p-1 hover:bg-white/50 rounded transition-colors"
+                                    title={isExpanded ? "收起" : "展开"}
                                 >
-                                    <X className="w-4 h-4 text-gray-600" />
+                                    {isExpanded ? (
+                                        <ChevronUp className="w-3.5 h-3.5 text-gray-600" />
+                                    ) : (
+                                        <ChevronDown className="w-3.5 h-3.5 text-gray-600" />
+                                    )}
                                 </button>
-                            </div>
-                        )}
-                    </div>
-
-                    {/* Tags */}
-                    <div className="flex flex-wrap gap-1.5 mt-2">
-                        {card.tags.slice(0, isExpanded ? card.tags.length : 3).map(tag => (
-                            <span key={tag} className={`px-2 py-0.5 bg-white/50 text-gray-700 rounded-full ${
-                                isExpanded ? 'text-xs' : 'text-[10px]'
-                            }`}>
-                {tag}
-              </span>
-                        ))}
-                        {!isExpanded && card.tags.length > 3 && (
-                            <span className="px-2 py-0.5 bg-white/40 text-gray-600 text-[10px] rounded-full">
-                +{card.tags.length - 3}
-              </span>
-                        )}
-                    </div>
+                            )}
+                        </div>
+                    )}
                 </div>
-
-                {/* Content Area */}
-                {!isExpanded && (
-                    <div className={`bg-white/80 ${isLastVisible ? 'p-4' : 'px-3 pb-2'}`}>
-                        <p className={`text-gray-600 ${
-                            isLastVisible ? 'text-sm leading-relaxed whitespace-pre-wrap' : 'text-xs line-clamp-2'
-                        }`}>
-                            {isLastVisible ? card.content : card.summary}
-                        </p>
-
-                        {isLastVisible && (
-                            <div className="bg-gray-50 rounded-lg p-3 mt-4">
-                                <div className="flex items-center justify-between text-xs text-gray-600">
-                                    <div className="flex items-center gap-3">
-                    <span className="flex items-center gap-1">
-                      <Clock className="w-3 h-3 text-gray-400" />
-                        {formatDate(card.timestamp)}
-                    </span>
-                                        <span className="text-gray-400">•</span>
-                                        <span className="truncate max-w-[150px]">
-                      {getHostname(card.url)}
-                    </span>
-                                    </div>
-
-                                    <button
-                                        onClick={(e) => {
-                                            e.stopPropagation();
-                                            window.open(card.url, '_blank');
-                                        }}
-                                        className="px-2 py-1 hover:bg-white rounded-md transition-colors flex items-center gap-1"
-                                    >
-                                        <Link2 className="w-3 h-3 text-gray-500" />
-                                        <span className="text-xs text-gray-500">访问</span>
-                                    </button>
-                                </div>
-                            </div>
-                        )}
-                    </div>
-                )}
-
-                {/* Expanded Content */}
-                {isExpanded && (
-                    <div className="p-4 bg-white">
-                        {!isEditing ? (
-                            <>
-                                <p className="text-gray-700 text-sm leading-relaxed mb-4 whitespace-pre-wrap">
-                                    {card.content}
-                                </p>
-
-                                <div className="bg-gray-50 rounded-lg p-3">
-                                    <div className="flex items-center justify-between text-xs text-gray-600">
-                                        <div className="flex items-center gap-3">
-                      <span className="flex items-center gap-1">
-                        <Clock className="w-3 h-3 text-gray-400" />
-                          {formatDate(card.timestamp)}
-                      </span>
-                                            <span className="text-gray-400">•</span>
-                                            <span className="truncate max-w-[150px]">
-                        {getHostname(card.url)}
-                      </span>
-                                        </div>
-
-                                        <button
-                                            onClick={(e) => {
-                                                e.stopPropagation();
-                                                window.open(card.url, '_blank');
-                                            }}
-                                            className="px-2 py-1 hover:bg-white rounded-md transition-colors flex items-center gap-1"
-                                        >
-                                            <Link2 className="w-3 h-3 text-gray-500" />
-                                            <span className="text-xs text-gray-500">访问</span>
-                                        </button>
-                                    </div>
-                                </div>
-                            </>
-                        ) : (
-                            <div className="space-y-3">
-                                <div>
-                                    <label className="text-xs text-gray-600 block mb-1">编辑原内容</label>
-                                    <textarea
-                                        value={editContent}
-                                        onChange={(e) => setEditContent(e.target.value)}
-                                        onClick={(e) => e.stopPropagation()}
-                                        className="w-full p-2 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/30 resize-none"
-                                        rows={4}
-                                    />
-                                </div>
-
-                                <div>
-                                    <label className="text-xs text-gray-600 block mb-1">添加新内容（另起一段）</label>
-                                    <textarea
-                                        value={additionalContent}
-                                        onChange={(e) => setAdditionalContent(e.target.value)}
-                                        onClick={(e) => e.stopPropagation()}
-                                        placeholder="在此添加新段落..."
-                                        className="w-full p-2 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/30 resize-none"
-                                        rows={3}
-                                    />
-                                </div>
-
-                                <div className="flex gap-2">
-                                    <button
-                                        onClick={(e) => {
-                                            e.stopPropagation();
-                                            setEditingCard(null);
-                                            setEditContent('');
-                                            setAdditionalContent('');
-                                        }}
-                                        className="flex-1 py-1.5 bg-gray-100 text-gray-700 text-sm rounded-lg hover:bg-gray-200"
-                                    >
-                                        取消
-                                    </button>
-                                    <button
-                                        onClick={(e) => {
-                                            e.stopPropagation();
-                                            handleEditSave();
-                                        }}
-                                        className="flex-1 py-1.5 bg-emerald-500 text-white text-sm rounded-lg hover:bg-emerald-600"
-                                    >
-                                        保存
-                                    </button>
-                                </div>
-                            </div>
-                        )}
-                    </div>
-                )}
             </div>
         </div>
     );
