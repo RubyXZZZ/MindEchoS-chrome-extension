@@ -3,29 +3,44 @@
   "name": "Knowledge Cards",
   "version": "1.0.0",
   "description": "Simple knowledge management with AI",
-
   "permissions": [
     "storage",
     "tabs",
     "activeTab",
     "sidePanel",
-    "contextMenus"
+    "contextMenus",
+    "scripting"
   ],
-
-  "host_permissions": ["<all_urls>"],
-
+  "host_permissions": [
+    "<all_urls>"
+  ],
   "background": {
     "service_worker": "background.js",
     "type": "module"
   },
-
   "action": {
     "default_title": "Open Knowledge Cards"
   },
-
   "side_panel": {
     "default_path": "index.html"
-  }
-
-
+  },
+  "commands": {
+    "extract-knowledge": {
+      "suggested_key": {
+        "default": "Ctrl+Shift+S",
+        "mac": "Command+Shift+S"
+      },
+      "description": "Extract selected text to a new knowledge card"
+    }
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "<all_urls>"
+      ],
+      "js": [
+        "content.js"
+      ]
+    }
+  ]
 }

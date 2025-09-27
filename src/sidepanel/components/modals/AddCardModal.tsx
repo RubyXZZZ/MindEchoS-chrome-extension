@@ -5,7 +5,7 @@ import { KnowledgeCard } from '../../types/card.types';
 import { CARD_COLORS } from '../../utils/constants';
 
 export const AddCardModal: React.FC = () => {
-    const { showAddModal, setShowAddModal, addCard, updateCard, cards, editingCard, setEditingCard } = useStore();
+    const { showAddModal, setShowAddModal, addCard, updateCard, cards, editingCard, setEditingCard, initialContent, setInitialContent } = useStore();
 
     const editingCardData = editingCard ? cards.find(c => c.id === editingCard) : null;
 
@@ -37,20 +37,16 @@ export const AddCardModal: React.FC = () => {
                     category: editingCardData.category || 'Other',
                     url: editingCardData.url || ''
                 });
-            } else {
-                // Check for pending card from extraction
-                const pendingData = sessionStorage.getItem('pendingCard');
-                if (pendingData) {
-                    const data = JSON.parse(pendingData);
-                    setFormData(prev => ({
-                        ...prev,
-                        title: data.title || '',
-                        content: data.content || '',
-                        summary: data.content?.substring(0, 200) || '',
-                        url: data.url || ''
-                    }));
-                    sessionStorage.removeItem('pendingCard');
-                }
+            } else if (initialContent) {
+                // New card from selection
+                setFormData({
+                    title: '',
+                    summary: initialContent.substring(0, 200) || '',
+                    content: initialContent,
+                    category: 'Other',
+                    url: ''
+                });
+                setInitialContent(null);
             }
         } else {
             // Reset form when modal closes
@@ -66,8 +62,11 @@ export const AddCardModal: React.FC = () => {
             setNewCategoryInput('');
             setEditingCard(null);
             setExtractedType('');
+            if (initialContent) {
+                setInitialContent(null);
+            }
         }
-    }, [showAddModal, editingCardData, setEditingCard]);
+    }, [showAddModal, editingCardData, initialContent, setEditingCard, setInitialContent]);
 
     const handleAddCategory = () => {
         if (newCategoryInput.trim() && !allCategories.includes(newCategoryInput.trim())) {

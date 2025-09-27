@@ -1,82 +1,84 @@
-// Helper function to save card directly
-// Helper function to save card directly
-async function saveCard(card: any) {
-    const storage = await chrome.storage.local.get('knowledge_cards');
-    const cards = storage.knowledge_cards || [];
-    cards.unshift({
-        id: Date.now().toString(),
-        ...card,
-        timestamp: Date.now()
-    });
-    await chrome.storage.local.set({ knowledge_cards: cards });
+/**
+ * This function is injected into the page to get the current text selection.
+ * It then sends the selection back to the service worker.
+ */
+function getSelectionAndSend() {
+    const selection = window.getSelection()?.toString().trim() || '';
+    if (selection && selection.length > 2) {
+        // Use a more specific message type to avoid conflicts.
+        chrome.runtime.sendMessage({
+            type: 'SELECTION_TO_SAVE',
+            text: selection.substring(0, 5000),
+        });
+    }
 }
 
-// Context menus
+/**
+ * Injects the script to get the selection from the page.
+ */
+async function requestSelectionFromTab(tab: chrome.tabs.Tab) {
+    if (!tab.id || !tab.url) return;
+
+    // Prevent errors from trying to inject into restricted pages.
+    if (tab.url.startsWith('chrome://') || tab.url.startsWith('https://chrome.google.com/webstore')) {
+        return;
+    }
+
+    try {
+        await chrome.scripting.executeScript({
+            target: { tabId: tab.id },
+            func: getSelectionAndSend,
+        });
+    } catch (e) {
+        console.error('Failed to inject script to get selection:', e);
+    }
+}
+
+// Create the context menu item upon installation.
 chrome.runtime.onInstalled.addListener(() => {
     chrome.contextMenus.create({
         id: 'save-selection',
-        title: '保存到知识卡片',
-        contexts: ['selection']
-    });
-
-    chrome.contextMenus.create({
-        id: 'summarize-page',
-        title: '总结页面到卡片',
-        contexts: ['page']
+        title: 'Save selection to Knowledge Cards',
+        contexts: ['selection'],
     });
 });
 
-// Handle context menu clicks
+// --- Main User Action Listeners ---
+
+// Listener for the context menu.
 chrome.contextMenus.onClicked.addListener(async (info, tab) => {
-    if (!tab?.id) return;
-
-    if (info.menuItemId === 'save-selection' && info.selectionText) {
-        await saveCard({
-            title: `Selection from ${tab.title}`,
-            content: info.selectionText,
-            summary: info.selectionText.substring(0, 100),
-            url: tab.url,
-            tags: [],
-            category: 'Technology'
-        });
-
-    } else if (info.menuItemId === 'summarize-page') {
-        const response = await chrome.tabs.sendMessage(tab.id, {
-            type: 'EXTRACT_CONTENT'
-        });
-
-        if (response.success) {
-            await saveCard({
-                title: response.title,
-                content: response.content,
-                summary: response.content.substring(0, 100),
-                url: response.url,
-                tags: [],
-                category: 'Technology'
-            });
-        }
+    if (info.menuItemId === 'save-selection' && tab?.id) {
+        // 1. Open the side panel immediately in response to the user gesture.
+        await chrome.sidePanel.open({ tabId: tab.id });
+        // 2. Request the selection from the page.
+        await requestSelectionFromTab(tab);
     }
 });
 
-// Forward messages from content script to popup/sidepanel
-// Use underscore prefix to indicate sender is intentionally unused
-chrome.runtime.onMessage.addListener((message, _sender) => {
-    if (message.type === 'CAPTURE_SELECTION') {
-        // Forward to popup/sidepanel
-        chrome.runtime.sendMessage(message);
+// Listener for the keyboard shortcut.
+chrome.commands.onCommand.addListener(async (command, tab) => {
+    if (command === 'extract-knowledge' && tab?.id) {
+        // 1. Open the side panel immediately in response to the user gesture.
+        await chrome.sidePanel.open({ tabId: tab.id });
+        // 2. Request the selection from the page.
+        await requestSelectionFromTab(tab);
     }
 });
 
-// Keep service worker alive
-chrome.runtime.onConnect.addListener((port) => {
-    if (port.name === 'keepAlive') {
-        port.onDisconnect.addListener(() => {
-            // Port disconnected, service worker will stay alive
-        });
+// --- Data Handling ---
+
+// Listener for the SELECTION_TO_SAVE message from the injected script.
+chrome.runtime.onMessage.addListener(async (message) => {
+    if (message.type === 'SELECTION_TO_SAVE') {
+        // 3. Store the received text in session storage.
+        // The side panel will be listening for this change.
+        await chrome.storage.session.set({ pendingSelection: message.text });
     }
 });
 
-// Handle extension icon click to open sidepanel
+// --- Default Action ---
+
+// Handle the extension icon click to open the side panel.
 chrome.action.onClicked.addListener(async (tab) => {
     if (tab?.id) {
         await chrome.sidePanel.open({ tabId: tab.id });

@@ -9,6 +9,7 @@ interface AppState {
     selectedCategory: string;
     expandedCard: string | null;
     editingCard: string | null;
+    initialContent: string | null;
 
     // Chat state
     messages: ChatMessage[];
@@ -29,6 +30,7 @@ interface AppState {
     setSelectedCategory: (category: string) => void;
     setExpandedCard: (id: string | null) => void;
     setEditingCard: (id: string | null) => void;
+    setInitialContent: (content: string | null) => void;
 
     addMessage: (message: ChatMessage) => void;
     setChatMode: (mode: ChatMode) => void;
@@ -46,6 +48,7 @@ export const useStore = create<AppState>((set) => ({
     selectedCategory: 'All',
     expandedCard: null,
     editingCard: null,
+    initialContent: null,
 
     messages: [],
     chatMode: 'free',
@@ -70,6 +73,7 @@ export const useStore = create<AppState>((set) => ({
     setSelectedCategory: (selectedCategory) => set({ selectedCategory }),
     setExpandedCard: (expandedCard) => set({ expandedCard }),
     setEditingCard: (editingCard) => set({ editingCard }),
+    setInitialContent: (initialContent) => set({ initialContent }),
 
     addMessage: (message) => set((state) => ({
         messages: [...state.messages, message]
@@ -81,4 +85,3 @@ export const useStore = create<AppState>((set) => ({
     setCurrentView: (currentView) => set({ currentView }),
     setShowAddModal: (showAddModal) => set({ showAddModal }),
 }));
-

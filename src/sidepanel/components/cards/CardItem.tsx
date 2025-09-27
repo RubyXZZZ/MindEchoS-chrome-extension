@@ -15,14 +15,14 @@ interface CardItemProps {
 }
 
 export const CardItem: React.FC<CardItemProps> = ({
-                                                      card,
-                                                      isManageMode,
-                                                      isSelected,
-                                                      onSelect,
-                                                      isExpanded,
-                                                      onExpand,
-                                                      isOverlapping = false
-                                                  }) => {
+    card,
+    isManageMode,
+    isSelected,
+    onSelect,
+    isExpanded,
+    onExpand,
+    isOverlapping = false
+}) => {
     const { deleteCard, setEditingCard, setShowAddModal } = useStore();
 
     const handleDelete = (e: React.MouseEvent) => {
@@ -38,11 +38,6 @@ export const CardItem: React.FC<CardItemProps> = ({
         setShowAddModal(true);
     };
 
-    // const handleCheckboxClick = (e: React.MouseEvent) => {
-    //     e.stopPropagation();
-    //     onSelect(card.id);
-    // };
-
     const handleCardClick = () => {
         if (!isManageMode && isOverlapping) {
             onExpand();
@@ -52,20 +47,18 @@ export const CardItem: React.FC<CardItemProps> = ({
     return (
         <div
             className={`
-        ${card.color} 
-        rounded-xl shadow-lg hover:shadow-xl transition-all border border-white/50 
-        ${isExpanded ? 'scale-[1.02] shadow-2xl ring-2 ring-emerald-500/50' : ''} 
-        ${isOverlapping && !isManageMode ? 'cursor-pointer' : ''}
-        backdrop-blur-sm bg-opacity-90
-      `}
+                ${card.color} 
+                rounded-xl shadow-lg hover:shadow-xl transition-all border border-white/50 
+                ${isExpanded ? 'shadow-2xl ring-2 ring-emerald-500/50 h-[400px]' : 'h-[180px]'} 
+                ${isOverlapping && !isManageMode ? 'cursor-pointer' : ''}
+                backdrop-blur-sm bg-opacity-90 flex flex-col
+            `}
             onClick={handleCardClick}
         >
-            <div className="p-4">
+            <div className="p-4 flex-grow flex flex-col">
                 {/* Header */}
                 <div className="flex items-start justify-between mb-2">
-                    {/* Left side - Checkbox and Title */}
                     <div className="flex items-start flex-1">
-                        {/* Checkbox in manage mode */}
                         {isManageMode && (
                             <label className="flex items-center mt-1 mr-2">
                                 <input
@@ -80,16 +73,13 @@ export const CardItem: React.FC<CardItemProps> = ({
                                 />
                             </label>
                         )}
-
                         <h3 className="text-sm font-semibold text-gray-900 flex-1">
                             {card.title}
                         </h3>
                     </div>
-
-                    {/* Right side - Category */}
                     <span className="px-2 py-0.5 bg-white/60 rounded-full text-gray-700 font-medium text-[10px] ml-2">
-            {card.category || 'Other'}
-          </span>
+                        {card.category || 'Other'}
+                    </span>
                 </div>
 
                 {/* Summary (always visible) */}
@@ -98,22 +88,23 @@ export const CardItem: React.FC<CardItemProps> = ({
                 </p>
 
                 {/* Full Content (only when expanded) */}
-                {isExpanded && (
-                    <div className="mt-3 pt-3 border-t border-gray-200/50">
-                        <div className="text-xs text-gray-700 whitespace-pre-wrap max-h-64 overflow-y-auto">
-                            {card.content}
+                <div className={`flex-grow transition-opacity duration-300 ${isExpanded ? 'opacity-100' : 'opacity-0'}`}>
+                    {isExpanded && (
+                        <div className="mt-3 pt-3 border-t border-gray-200/50 h-full flex flex-col">
+                            <div className="text-xs text-gray-700 whitespace-pre-wrap flex-grow overflow-y-auto">
+                                {card.content}
+                            </div>
                         </div>
-                    </div>
-                )}
+                    )}
+                </div>
 
                 {/* Footer */}
-                <div className="flex items-center justify-between text-[10px] text-gray-600 mt-3">
-                    {/* Left side - Time and URL */}
+                <div className="flex items-center justify-between text-[10px] text-gray-600 mt-3 flex-shrink-0">
                     <div className="flex items-center gap-2">
-            <span className="flex items-center gap-0.5">
-              <Clock className="w-3 h-3" />
-                {formatTime(card.timestamp)}
-            </span>
+                        <span className="flex items-center gap-0.5">
+                            <Clock className="w-3 h-3" />
+                            {formatTime(card.timestamp)}
+                        </span>
                         {card.url && (
                             <a
                                 href={card.url}
@@ -127,7 +118,6 @@ export const CardItem: React.FC<CardItemProps> = ({
                         )}
                     </div>
 
-                    {/* Right side - Actions */}
                     {!isManageMode && (
                         <div className="flex items-center gap-1">
                             <button

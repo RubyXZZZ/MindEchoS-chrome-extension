@@ -6,40 +6,14 @@ import {Readability} from "@mozilla/readability";
  */
 
 // Capture selected text
-function captureSelection() {
+function captureSelection(): string | null {
     const selection = window.getSelection();
     const selectedText = selection?.toString().trim() || '';
-    if (selectedText.length <= 2) {
-        return {
-            text: '',
-            url: window.location.href,
-            title: document.title,
-            hasSelection: false
-        };
+    if (selectedText.length > 2) {
+        return selectedText.substring(0, 5000);
     }
-
-    return {
-        text: selectedText.substring(0, 5000),
-        url: window.location.href,
-        title: document.title,
-        hasSelection: true
-    };
+    return null;
 }
-
-
-// keyboard shortcut (ctrl + shift + s)
-document.addEventListener('keydown', (e) => {
-    if (e.ctrlKey && e.shiftKey && e.key === 'S') {
-        e.preventDefault();
-        const selection = captureSelection();
-        if (selection.hasSelection) {
-            chrome.runtime.sendMessage({
-                type: 'CAPTURE_SELECTION',
-                data: selection
-            });
-        }
-    }
-});
 
 
 // Extract page content
@@ -77,9 +51,16 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
         case 'EXTRACT_CONTENT':
             sendResponse(extractPageContent());
             break;
-        case 'GET_SELECTION':
-            sendResponse(captureSelection());
+        case 'GET_SELECTION': {
+            const selectedText = captureSelection();
+            if (selectedText) {
+                chrome.runtime.sendMessage({
+                    type: 'SAVE_SELECTION',
+                    text: selectedText,
+                });
+            }
             break;
+        }
     }
     return true;
 });
