@@ -5,34 +5,60 @@ import { AddCardModal } from './sidepanel/components/modals/AddCardModal';
 import { DeleteCategoryModal } from './sidepanel/components/modals/DeleteCategoryModal';
 import { CardsView } from './sidepanel/views/CardsView';
 import { ChatView } from './sidepanel/views/ChatView';
+import type { ManageState } from './sidepanel/types/manage.types';
 
 function App() {
     const { currentView, cards, initialize, loadStore, checkForPendingSelection } = useStore();
     const [isLoading, setIsLoading] = useState(true);
 
-    const [manageModeState, setManageModeState] = useState({
+    // 初始化管理状态
+    const [manageState, setManageState] = useState<ManageState>({
+        view: 'cards',
         isManageMode: false,
-        selectedCards: [] as string[]
+        selectedCards: []
     });
 
+    // 处理卡片选择（仅在 cards 视图中使用）
     const handleCardSelect = (cardId: string) => {
-        setManageModeState(prev => ({
-            ...prev,
-            selectedCards: prev.selectedCards.includes(cardId)
-                ? prev.selectedCards.filter(id => id !== cardId)
-                : [...prev.selectedCards, cardId]
-        }));
+        setManageState(prev => {
+            // 类型守卫，确保只在 cards 视图中处理选择
+            if (prev.view === 'cards') {
+                return {
+                    ...prev,
+                    selectedCards: prev.selectedCards.includes(cardId)
+                        ? prev.selectedCards.filter(id => id !== cardId)
+                        : [...prev.selectedCards, cardId]
+                };
+            }
+            return prev;
+        });
     };
 
-    // This is the definitive initialization sequence to solve the race condition.
+    // 监听视图切换，同步更新管理状态
+    useEffect(() => {
+        if (currentView === 'cards') {
+            setManageState({
+                view: 'cards',
+                isManageMode: false,
+                selectedCards: []
+            });
+        } else if (currentView === 'chat') {
+            setManageState({
+                view: 'chat',
+                isManageMode: false
+            });
+        }
+    }, [currentView]);
+
+    // 初始化应用
     useEffect(() => {
         const initializeApp = async () => {
             try {
-                // 1. Set up the listener for future events.
+                // 1. 设置监听器
                 initialize();
-                // 2. Load persisted cards and categories.
+                // 2. 加载持久化的卡片和分类
                 await loadStore();
-                // 3. Check for any event that happened *before* the listener was ready.
+                // 3. 检查监听器准备好之前的事件
                 await checkForPendingSelection();
             } catch (error) {
                 console.error('Failed to initialize app:', error);
@@ -42,9 +68,7 @@ function App() {
         };
 
         initializeApp();
-        // The dependency array ensures this robust sequence runs only once on mount.
     }, [initialize, loadStore, checkForPendingSelection]);
-
 
     if (isLoading) {
         return (
@@ -60,28 +84,39 @@ function App() {
     return (
         <div className="h-screen flex flex-col bg-gradient-to-br from-gray-50/80 via-white/50 to-gray-100/80 backdrop-blur-md">
             <NavigationBar
-                manageModeState={manageModeState}
-                onManageModeChange={setManageModeState}
+                manageState={manageState}
+                onManageStateChange={setManageState}
             />
 
             <div className="flex-1 overflow-hidden relative">
                 {currentView === 'cards' ? (
                     <CardsView
-                        manageModeState={manageModeState}
+                        manageModeState={manageState.view === 'cards' ? {
+                            isManageMode: manageState.isManageMode,
+                            selectedCards: manageState.selectedCards
+                        } : {
+                            isManageMode: false,
+                            selectedCards: []
+                        }}
                         onCardSelect={handleCardSelect}
                     />
                 ) : (
-                    <ChatView />
+                    <ChatView
+                        // isManageMode={manageState.isManageMode}
+                    />
                 )}
             </div>
 
-            {/* Global Modals */}
+            {/* 全局模态框 */}
             <AddCardModal />
             <DeleteCategoryModal />
 
+            {/* 开发环境调试信息 */}
             {process.env.NODE_ENV === 'development' && (
                 <div className="fixed bottom-2 left-2 bg-black/80 text-white text-xs px-2 py-1 rounded-lg z-50">
-                    Cards: {cards.length} | View: {currentView} | Selected: {manageModeState.selectedCards.length}
+                    Cards: {cards.length} | View: {currentView} |
+                    Selected: {manageState.view === 'cards' ? manageState.selectedCards.length : 0} |
+                    Mode: {manageState.isManageMode ? 'Manage' : 'Normal'}
                 </div>
             )}
         </div>
