@@ -149,7 +149,7 @@ export class PromptsAI {
             prompt += '相关知识卡片：\n';
             context.cards.forEach((card, index) => {
                 prompt += `\n卡片${index + 1}: ${card.title}\n`;
-                prompt += `摘要: ${card.summary}\n`;
+
                 if (card.content) {
                     prompt += `内容: ${card.content.substring(0, 500)}\n`;
                 }

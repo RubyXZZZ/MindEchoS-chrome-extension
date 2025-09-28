@@ -49,15 +49,15 @@ export const CardItem: React.FC<CardItemProps> = ({
             className={`
                 ${card.color} 
                 rounded-xl shadow-lg hover:shadow-xl transition-all border border-white/50 
-                ${isExpanded ? 'shadow-2xl ring-2 ring-emerald-500/50 h-[400px]' : 'h-[180px]'} 
+                ${isExpanded ? 'shadow-2xl ring-2 ring-emerald-500/50 h-[300px]' : 'h-[180px]'} 
                 ${isOverlapping && !isManageMode ? 'cursor-pointer' : ''}
                 backdrop-blur-sm bg-opacity-90 flex flex-col
             `}
             onClick={handleCardClick}
         >
-            <div className="p-4 flex-grow flex flex-col">
+            <div className="p-4 flex-grow flex flex-col overflow-hidden">
                 {/* Header */}
-                <div className="flex items-start justify-between mb-2">
+                <div className="flex items-start justify-between mb-2 flex-shrink-0">
                     <div className="flex items-start flex-1">
                         {isManageMode && (
                             <label className="flex items-center mt-1 mr-2">
@@ -82,19 +82,20 @@ export const CardItem: React.FC<CardItemProps> = ({
                     </span>
                 </div>
 
-                {/* Summary (always visible) */}
-                <p className="text-xs text-gray-700 mb-2 line-clamp-2">
-                    {card.summary}
-                </p>
-
-                {/* Full Content (only when expanded) */}
-                <div className={`flex-grow transition-opacity duration-300 ${isExpanded ? 'opacity-100' : 'opacity-0'}`}>
-                    {isExpanded && (
-                        <div className="mt-3 pt-3 border-t border-gray-200/50 h-full flex flex-col">
-                            <div className="text-xs text-gray-700 whitespace-pre-wrap flex-grow overflow-y-auto">
+                {/* Content Area: Switches between preview and full view */}
+                <div className="flex-grow overflow-hidden">
+                    {isExpanded ? (
+                        // Expanded view: Full, scrollable content
+                        <div className="mt-3 pt-3 border-t border-gray-200/50 h-full">
+                            <div className="text-xs text-gray-700 whitespace-pre-wrap h-full overflow-y-auto pr-2">
                                 {card.content}
                             </div>
                         </div>
+                    ) : (
+                        // Collapsed view: Truncated preview
+                        <p className="text-xs text-gray-700 line-clamp-3">
+                            {card.content}
+                        </p>
                     )}
                 </div>
 
