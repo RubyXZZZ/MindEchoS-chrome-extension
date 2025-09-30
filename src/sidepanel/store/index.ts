@@ -8,15 +8,13 @@ import {
     STORAGE_KEYS,
     CARD_COLORS
 } from '../utils/constants';
-import { SummarizeAI } from '../services/ai/summarizeAI';
 
-// Type for the data captured from the content script (enhanced with AI title)
+// Type for the data captured from the content script
 interface SelectionPayload {
     text: string;
     url: string;
-    title?: string;  // AI 生成的标题
-    originalText?: string;  // 原始文本（未总结的）
-    needsAISummarize?: boolean;  // 是否需要 AI 处理
+    title?: string;
+    needsAISummarize?: boolean;  // 标记是否需要 AI 处理
 }
 
 interface AppState {
@@ -90,55 +88,19 @@ export const useStore = create<AppState>((set, get) => ({
             if (areaName === 'session' && changes.pendingSelection) {
                 const { newValue } = changes.pendingSelection;
                 if (newValue) {
-                    // 检查是否需要 AI 处理 - 使用 Chrome 138+ 的 Summarizer API
-                    if (newValue.needsAISummarize && 'Summarizer' in self) {
-                        try {
-                            const summarizer = SummarizeAI.getInstance();
-                            const summarized = await summarizer.summarizeSelection(
-                                newValue.text,
-                                newValue.url || ''
-                            );
+                    console.log('[Store] Detected pendingSelection:', newValue);
 
-                            if (summarized.success) {
-                                set({
-                                    initialSelection: {
-                                        text: summarized.content || newValue.text,
-                                        title: summarized.title,
-                                        url: newValue.url,
-                                        originalText: newValue.text
-                                    },
-                                    showAddModal: true
-                                });
-                            } else {
-                                // AI 失败，使用降级处理
-                                set({
-                                    initialSelection: {
-                                        text: newValue.text.substring(0, 500) + '...',
-                                        title: newValue.text.substring(0, 50) + '...',
-                                        url: newValue.url
-                                    },
-                                    showAddModal: true
-                                });
-                            }
-                        } catch (error) {
-                            console.error('AI summarization failed:', error);
-                            // 降级处理
-                            set({
-                                initialSelection: {
-                                    text: newValue.text,
-                                    url: newValue.url
-                                },
-                                showAddModal: true
-                            });
-                        }
-                    } else {
-                        // 不需要 AI 处理或 Summarizer API 不可用
-                        set({
-                            initialSelection: newValue,
-                            showAddModal: true
-                        });
-                    }
+                    // 不再在这里做 AI 处理，直接设置 initialSelection 并打开 Modal
+                    set({
+                        initialSelection: {
+                            text: newValue.text,
+                            url: newValue.url,
+                            needsAISummarize: newValue.needsAISummarize || false
+                        },
+                        showAddModal: true
+                    });
 
+                    // 清除 session storage
                     chrome.storage.session.remove('pendingSelection');
                 }
             }
@@ -150,52 +112,17 @@ export const useStore = create<AppState>((set, get) => ({
             const result = await chrome.storage.session.get('pendingSelection');
             if (result.pendingSelection) {
                 const pendingData = result.pendingSelection;
+                console.log('[Store] Found pending selection on init:', pendingData);
 
-                // 检查是否需要 AI 处理 - 使用 Chrome 138+ 的 Summarizer API
-                if (pendingData.needsAISummarize && 'Summarizer' in self) {
-                    try {
-                        const summarizer = SummarizeAI.getInstance();
-                        const summarized = await summarizer.summarizeSelection(
-                            pendingData.text,
-                            pendingData.url || ''
-                        );
-
-                        if (summarized.success) {
-                            set({
-                                initialSelection: {
-                                    text: summarized.content || pendingData.text,
-                                    title: summarized.title,
-                                    url: pendingData.url,
-                                    originalText: pendingData.text
-                                },
-                                showAddModal: true
-                            });
-                        } else {
-                            // AI 失败，使用降级处理
-                            set({
-                                initialSelection: {
-                                    text: pendingData.text.substring(0, 500) + '...',
-                                    title: pendingData.text.substring(0, 50) + '...',
-                                    url: pendingData.url
-                                },
-                                showAddModal: true
-                            });
-                        }
-                    } catch (error) {
-                        console.error('AI summarization failed:', error);
-                        // 降级处理
-                        set({
-                            initialSelection: pendingData,
-                            showAddModal: true
-                        });
-                    }
-                } else {
-                    // 不需要 AI 处理或 Summarizer API 不可用
-                    set({
-                        initialSelection: pendingData,
-                        showAddModal: true
-                    });
-                }
+                // 不再在这里做 AI 处理，直接设置 initialSelection 并打开 Modal
+                set({
+                    initialSelection: {
+                        text: pendingData.text,
+                        url: pendingData.url,
+                        needsAISummarize: pendingData.needsAISummarize || false
+                    },
+                    showAddModal: true
+                });
 
                 await chrome.storage.session.remove('pendingSelection');
             }
@@ -208,12 +135,9 @@ export const useStore = create<AppState>((set, get) => ({
         try {
             const result = await chrome.storage.local.get([STORAGE_KEYS.CARDS, STORAGE_KEYS.USER_CATEGORIES]);
 
-            // Debug logging
             console.log('Loading from storage:', result);
 
-            // Check if cards exist in storage and handle both undefined and empty cases
             if (!result[STORAGE_KEYS.CARDS] || !Array.isArray(result[STORAGE_KEYS.CARDS])) {
-                // First time user - create sample card
                 const sampleCard: KnowledgeCard = {
                     id: 'sample-card-1',
                     title: '欢迎使用知识卡片!',
@@ -225,18 +149,15 @@ export const useStore = create<AppState>((set, get) => ({
                     color: CARD_COLORS[0],
                 };
 
-                // Save the sample card to storage
                 await chrome.storage.local.set({ [STORAGE_KEYS.CARDS]: [sampleCard] });
                 set({ cards: [sampleCard] });
                 console.log('Created sample card');
             } else {
-                // Load existing cards
                 const loadedCards = result[STORAGE_KEYS.CARDS];
                 set({ cards: loadedCards });
                 console.log(`Loaded ${loadedCards.length} cards from storage`);
             }
 
-            // Load user categories
             if (result[STORAGE_KEYS.USER_CATEGORIES] && Array.isArray(result[STORAGE_KEYS.USER_CATEGORIES])) {
                 const loadedUserCategories = result[STORAGE_KEYS.USER_CATEGORIES].filter((c: any) =>
                     typeof c === 'string' && c.trim() !== ''
@@ -246,7 +167,6 @@ export const useStore = create<AppState>((set, get) => ({
             }
         } catch (error) {
             console.error('Error loading store:', error);
-            // Set default state in case of error
             set({ cards: [], userCategories: [] });
         }
     },
@@ -256,17 +176,13 @@ export const useStore = create<AppState>((set, get) => ({
             const currentCards = get().cards;
             const newCards = [...currentCards, card];
 
-            // Update state first
             set({ cards: newCards });
-
-            // Then persist to storage
             await chrome.storage.local.set({ [STORAGE_KEYS.CARDS]: newCards });
 
             console.log('Card added successfully:', card.id);
             console.log('Total cards now:', newCards.length);
         } catch (error) {
             console.error('Error adding card:', error);
-            // Revert state on error
             const originalCards = get().cards.filter(c => c.id !== card.id);
             set({ cards: originalCards });
         }

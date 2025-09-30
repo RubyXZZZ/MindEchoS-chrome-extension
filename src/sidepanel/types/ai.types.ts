@@ -10,7 +10,7 @@ export interface SummarizerMonitor {
 
 export interface SummarizerOptions {
     sharedContext?: string;
-    type?: 'key-points' | 'tldr' | 'teaser' | 'headline';
+    type?: 'key-points' | 'tl;dr' | 'teaser' | 'headline';
     format?: 'markdown' | 'plain-text';
     length?: 'short' | 'medium' | 'long';
     monitor?: (m: SummarizerMonitor) => void;
@@ -35,7 +35,7 @@ export interface SummarizeResult {
 
 declare global {
     class Summarizer {
-        static availability(): Promise<'readily' | 'downloadable' | 'unavailable'>;
+        static availability(): Promise<'readily' | 'after-download' | 'no'>;
         static create(options?: SummarizerOptions): Promise<SummarizerInstance>;
     }
 }

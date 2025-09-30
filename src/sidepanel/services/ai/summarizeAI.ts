@@ -23,19 +23,19 @@ export class SummarizeAI {
     /**
      * 检查 Summarizer API 是否可用
      */
-    async checkAvailability(): Promise<'readily' | 'downloadable' | 'unavailable'> {
+    async checkAvailability(): Promise<'readily' | 'after-download' | 'no'> {
         try {
             if (!('Summarizer' in self)) {
-                console.warn('Summarizer API not supported');
-                return 'unavailable';
+                console.warn('[SummarizeAI] Summarizer API not supported');
+                return 'no';
             }
 
             const availability = await Summarizer.availability();
-            console.log('Summarizer availability:', availability);
+            console.log('[SummarizeAI] Availability:', availability);
             return availability;
         } catch (error) {
-            console.error('Error checking Summarizer availability:', error);
-            return 'unavailable';
+            console.error('[SummarizeAI] Error checking availability:', error);
+            return 'no';
         }
     }
 
@@ -46,24 +46,31 @@ export class SummarizeAI {
         try {
             const availability = await this.checkAvailability();
 
-            if (availability === 'unavailable') {
+            if (availability === 'no') {
+                console.warn('[SummarizeAI] API not available');
                 return null;
+            }
+
+            if (availability === 'after-download') {
+                console.log('[SummarizeAI] Model download may be required...');
             }
 
             const optionsWithMonitor: SummarizerOptions = {
                 ...options,
                 monitor(m) {
                     m.addEventListener('downloadprogress', (e) => {
-                        const percent = (e.loaded * 100);
-                        console.log(`Downloaded ${percent.toFixed(2)}%`);
+                        const percent = Math.round(e.loaded * 100);
+                        console.log(`[SummarizeAI] Downloaded ${percent}%`);
                     });
                 }
             };
 
+            console.log('[SummarizeAI] Creating summarizer with options:', options);
             const summarizer = await Summarizer.create(optionsWithMonitor);
+            console.log('[SummarizeAI] Summarizer created successfully');
             return summarizer;
         } catch (error) {
-            console.error('Failed to create summarizer:', error);
+            console.error('[SummarizeAI] Failed to create summarizer:', error);
             return null;
         }
     }
@@ -72,8 +79,8 @@ export class SummarizeAI {
      * 根据文本长度决定总结长度
      */
     private getContentLength(textLength: number): 'short' | 'medium' | 'long' {
-        if (textLength <= 300) return 'short';
-        if (textLength <= 1000) return 'medium';
+        if (textLength <= 500) return 'short';
+        if (textLength <= 2000) return 'medium';
         return 'long';
     }
 
@@ -88,6 +95,8 @@ export class SummarizeAI {
             };
         }
 
+        console.log('[SummarizeAI] Starting selection summarization, text length:', text.length);
+
         // 生成标题
         let title = '';
         const titleSummarizer = await this.createSummarizer({
@@ -98,19 +107,24 @@ export class SummarizeAI {
 
         if (titleSummarizer) {
             try {
+                console.log('[SummarizeAI] Generating title...');
                 title = await titleSummarizer.summarize(text);
+                console.log('[SummarizeAI] Title generated:', title);
                 titleSummarizer.destroy();
             } catch (error) {
-                console.error('Failed to generate title:', error);
+                console.error('[SummarizeAI] Title generation failed:', error);
                 title = text.substring(0, 50) + '...';
                 titleSummarizer.destroy();
             }
         } else {
+            console.log('[SummarizeAI] Title summarizer unavailable, using fallback');
             title = text.substring(0, 50) + '...';
         }
 
         // 生成内容总结
         const contentLength = this.getContentLength(text.length);
+        console.log('[SummarizeAI] Content length setting:', contentLength);
+
         const contentSummarizer = await this.createSummarizer({
             type: 'key-points',
             format: 'plain-text',
@@ -119,7 +133,9 @@ export class SummarizeAI {
 
         if (contentSummarizer) {
             try {
+                console.log('[SummarizeAI] Generating content summary...');
                 const content = await contentSummarizer.summarize(text);
+                console.log('[SummarizeAI] Content summary generated, length:', content.length);
                 contentSummarizer.destroy();
 
                 return {
@@ -128,16 +144,17 @@ export class SummarizeAI {
                     content: content
                 };
             } catch (error) {
-                console.error('Failed to generate content summary:', error);
+                console.error('[SummarizeAI] Content summary generation failed:', error);
                 contentSummarizer.destroy();
             }
         }
 
         // 降级处理
+        console.log('[SummarizeAI] Using fallback for content');
         return {
             success: true,
             title: title || text.substring(0, 50) + '...',
-            content: text.substring(0, 500) + '...'
+            content: text.substring(0, 500) + (text.length > 500 ? '...' : '')
         };
     }
 
@@ -156,6 +173,8 @@ export class SummarizeAI {
             };
         }
 
+        console.log('[SummarizeAI] Starting webpage summarization, content length:', pageContent.content.length);
+
         // 生成更好的标题
         let betterTitle = pageContent.title;
         const titleSummarizer = await this.createSummarizer({
@@ -166,16 +185,20 @@ export class SummarizeAI {
 
         if (titleSummarizer) {
             try {
+                console.log('[SummarizeAI] Generating webpage title...');
                 betterTitle = await titleSummarizer.summarize(pageContent.content);
+                console.log('[SummarizeAI] Webpage title generated:', betterTitle);
                 titleSummarizer.destroy();
             } catch (error) {
-                console.error('Failed to generate title:', error);
+                console.error('[SummarizeAI] Webpage title generation failed:', error);
                 titleSummarizer.destroy();
             }
         }
 
         // 生成内容总结
         const contentLength = this.getContentLength(pageContent.content.length);
+        console.log('[SummarizeAI] Webpage content length setting:', contentLength);
+
         const contentSummarizer = await this.createSummarizer({
             type: 'key-points',
             format: 'plain-text',
@@ -185,9 +208,11 @@ export class SummarizeAI {
 
         if (contentSummarizer) {
             try {
+                console.log('[SummarizeAI] Generating webpage content summary...');
                 const summary = await contentSummarizer.summarize(pageContent.content, {
                     context: `From webpage: ${pageContent.url}`
                 });
+                console.log('[SummarizeAI] Webpage content summary generated, length:', summary.length);
                 contentSummarizer.destroy();
 
                 return {
@@ -196,16 +221,17 @@ export class SummarizeAI {
                     content: summary
                 };
             } catch (error) {
-                console.error('Failed to generate content summary:', error);
+                console.error('[SummarizeAI] Webpage content summary generation failed:', error);
                 contentSummarizer.destroy();
             }
         }
 
         // 降级处理
+        console.log('[SummarizeAI] Using fallback for webpage content');
         return {
             success: true,
             title: betterTitle,
-            content: pageContent.content.substring(0, 500) + '...'
+            content: pageContent.content.substring(0, 500) + (pageContent.content.length > 500 ? '...' : '')
         };
     }
 }

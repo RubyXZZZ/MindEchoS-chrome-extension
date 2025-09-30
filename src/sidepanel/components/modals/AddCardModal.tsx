@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { X, Save, FileText, Globe, Video, Loader2 } from 'lucide-react';
 import { useStore } from '../../store';
 import { KnowledgeCard } from '../../types/card.types';
@@ -30,81 +30,164 @@ export const AddCardModal: React.FC = () => {
         url: ''
     });
 
-    const [isExtracting, setIsExtracting] = useState(false);
+    // 分别跟踪每个按钮的加载状态
+    const [extractingSelection, setExtractingSelection] = useState(false);
+    const [extractingWebpage, setExtractingWebpage] = useState(false);
     const [extractError, setExtractError] = useState<string>('');
 
     // 使用 AI Hook
-    const { summarizeText, summarizeWebpage, isProcessing: isAIProcessing, isAvailable: isAIAvailable } = useAISummarizer();
+    const { summarizeText, summarizeWebpage, isProcessing: isAIProcessing, isAvailable: isAIAvailable, isChecking: isAIChecking } = useAISummarizer();
 
+    // 跟踪是否已处理过右键/快捷键的自动 AI 总结
+    const hasProcessedAutoAI = useRef(false);
+
+    // 重置函数
+    const resetModal = () => {
+        setFormData({ title: '', content: '', category: DEFAULT_CATEGORY, url: '' });
+        setExtractError('');
+        setExtractingSelection(false);
+        setExtractingWebpage(false);
+        hasProcessedAutoAI.current = false;
+    };
+
+    // 处理右键/快捷键的自动 AI 总结
     useEffect(() => {
-        if (showAddModal) {
-            if (editingCardData) {
-                setFormData({
-                    title: editingCardData.title,
-                    content: editingCardData.content,
-                    category: editingCardData.category || DEFAULT_CATEGORY,
-                    url: editingCardData.url || ''
-                });
-            } else if (initialSelection) {
-                // 如果有初始选择（从右键菜单或快捷键），使用 AI 总结后的内容
+        const processAutoAI = async () => {
+            if (!showAddModal || !initialSelection || !initialSelection.needsAISummarize) {
+                return;
+            }
+
+            if (hasProcessedAutoAI.current) {
+                return;
+            }
+
+            // 等待 AI 可用性检查完成
+            if (isAIChecking) {
+                console.log('[AddCardModal] Waiting for AI availability check...');
+                return;
+            }
+
+            console.log('[AddCardModal] Auto-processing AI for right-click/shortcut selection');
+            console.log('[AddCardModal] AI Available:', isAIAvailable);
+            hasProcessedAutoAI.current = true;
+            setExtractingSelection(true);
+
+            try {
+                const summarized = await summarizeText(
+                    initialSelection.text,
+                    initialSelection.url
+                );
+
+                console.log('[AddCardModal] Auto AI result:', summarized);
+
+                let initialCategory = DEFAULT_CATEGORY;
+                if (selectedCategory !== ALL_CARDS_FILTER) {
+                    initialCategory = selectedCategory;
+                }
+
+                if (summarized.success && summarized.content) {
+                    setFormData({
+                        title: summarized.title || initialSelection.text.substring(0, 50) + '...',
+                        content: summarized.content,
+                        category: initialCategory,
+                        url: initialSelection.url || ''
+                    });
+                } else {
+                    // AI 失败，使用原文
+                    console.warn('[AddCardModal] AI failed, using original text');
+                    setFormData({
+                        title: initialSelection.text.substring(0, 50) + '...',
+                        content: initialSelection.text,
+                        category: initialCategory,
+                        url: initialSelection.url || ''
+                    });
+                }
+            } catch (error) {
+                console.error('[AddCardModal] Auto AI error:', error);
                 let initialCategory = DEFAULT_CATEGORY;
                 if (selectedCategory !== ALL_CARDS_FILTER) {
                     initialCategory = selectedCategory;
                 }
                 setFormData({
-                    title: initialSelection.title || '',
-                    content: initialSelection.text || '',
+                    title: initialSelection.text.substring(0, 50) + '...',
+                    content: initialSelection.text,
                     category: initialCategory,
                     url: initialSelection.url || ''
                 });
-            } else {
-                // 新建空白卡片
-                let initialCategory = DEFAULT_CATEGORY;
-                if (selectedCategory !== ALL_CARDS_FILTER) {
-                    initialCategory = selectedCategory;
-                }
-                setFormData({
-                    title: '',
-                    content: '',
-                    category: initialCategory,
-                    url: ''
-                });
+            } finally {
+                setExtractingSelection(false);
             }
-            setExtractError('');
-        } else {
-            // 只在 Modal 关闭时重置
-            if (editingCard) {
-                setTimeout(() => setEditingCard(null), 0);
-            }
-            if (initialSelection) {
-                setTimeout(() => setInitialSelection(null), 0);
-            }
-            setFormData({ title: '', content: '', category: DEFAULT_CATEGORY, url: '' });
-            setExtractError('');
-        }
-    }, [showAddModal, editingCardData, initialSelection, selectedCategory, editingCard, setEditingCard, setInitialSelection]);
+        };
 
-    // 处理 Selection 按钮点击
+        processAutoAI();
+    }, [showAddModal, initialSelection, summarizeText, selectedCategory, isAIChecking, isAIAvailable]);
+
+    // 处理表单初始化（编辑模式或空白卡片）
+    useEffect(() => {
+        if (!showAddModal) {
+            // Modal 关闭时清理
+            setTimeout(() => {
+                if (editingCard) setEditingCard(null);
+                if (initialSelection) setInitialSelection(null);
+                resetModal();
+            }, 0);
+            return;
+        }
+
+        // 如果是编辑模式
+        if (editingCardData) {
+            setFormData({
+                title: editingCardData.title,
+                content: editingCardData.content,
+                category: editingCardData.category || DEFAULT_CATEGORY,
+                url: editingCardData.url || ''
+            });
+            return;
+        }
+
+        // 如果是新建，且没有自动 AI 处理的需求（空白卡片）
+        if (!initialSelection || !initialSelection.needsAISummarize) {
+            let initialCategory = DEFAULT_CATEGORY;
+            if (selectedCategory !== ALL_CARDS_FILTER) {
+                initialCategory = selectedCategory;
+            }
+            setFormData({
+                title: '',
+                content: '',
+                category: initialCategory,
+                url: ''
+            });
+        }
+        // 如果 needsAISummarize 为 true，表单会由上面的 useEffect 处理
+    }, [showAddModal, editingCardData, editingCard, setEditingCard, initialSelection, setInitialSelection, selectedCategory]);
+
+    // 处理 Selection 按钮点击（手动提取）
     const handleExtractSelection = async () => {
-        setIsExtracting(true);
+        setExtractingSelection(true);
         setExtractError('');
 
         try {
+            console.log('[AddCardModal] Manual Selection button clicked');
             const response = await chrome.runtime.sendMessage({
                 command: 'GET_ACTIVE_TAB_SELECTION'
             });
 
+            console.log('[AddCardModal] Content script response:', response);
+
             if (response && response.success) {
+                console.log('[AddCardModal] Calling AI summarizer for selection...');
                 const summarized = await summarizeText(
                     response.data.text,
                     response.data.url
                 );
 
-                if (summarized.success) {
+                console.log('[AddCardModal] Selection summarize result:', summarized);
+
+                if (summarized.success && summarized.content) {
                     setFormData({
                         ...formData,
-                        title: summarized.title || '',
-                        content: summarized.content || response.data.text,
+                        title: summarized.title || response.data.text.substring(0, 50) + '...',
+                        content: summarized.content,
                         url: response.data.url || formData.url
                     });
                 } else {
@@ -114,31 +197,37 @@ export const AddCardModal: React.FC = () => {
                 setExtractError(response?.error || '无法获取选中内容');
             }
         } catch (error) {
-            console.error('Failed to extract selection:', error);
+            console.error('[AddCardModal] Failed to extract selection:', error);
             setExtractError('提取失败，请重试');
         } finally {
-            setIsExtracting(false);
+            setExtractingSelection(false);
         }
     };
 
-    // 处理 Webpage 按钮点击
+    // 处理 Webpage 按钮点击（提取网页内容）
     const handleExtractWebpage = async () => {
-        setIsExtracting(true);
+        setExtractingWebpage(true);
         setExtractError('');
 
         try {
+            console.log('[AddCardModal] Manual Webpage button clicked');
             const response = await chrome.runtime.sendMessage({
                 command: 'EXTRACT_CURRENT_WEBPAGE'
             });
 
+            console.log('[AddCardModal] Webpage extract response:', response);
+
             if (response && response.success) {
+                console.log('[AddCardModal] Calling AI webpage summarizer...');
                 const summarized = await summarizeWebpage(response.data);
 
-                if (summarized.success) {
+                console.log('[AddCardModal] Webpage summarize result:', summarized);
+
+                if (summarized.success && summarized.content) {
                     setFormData({
                         ...formData,
                         title: summarized.title || response.data.title,
-                        content: summarized.content || response.data.content,
+                        content: summarized.content,
                         url: response.data.url || formData.url
                     });
                 } else {
@@ -148,10 +237,10 @@ export const AddCardModal: React.FC = () => {
                 setExtractError(response?.error || '无法提取网页内容');
             }
         } catch (error) {
-            console.error('Failed to extract webpage:', error);
+            console.error('[AddCardModal] Failed to extract webpage:', error);
             setExtractError('提取失败，请重试');
         } finally {
-            setIsExtracting(false);
+            setExtractingWebpage(false);
         }
     };
 
@@ -185,7 +274,8 @@ export const AddCardModal: React.FC = () => {
         setShowAddModal(false);
     };
 
-    const isLoading = isExtracting || isAIProcessing;
+    // 任何按钮正在处理中
+    const isAnyLoading = extractingSelection || extractingWebpage || isAIProcessing;
 
     if (!showAddModal) return null;
 
@@ -204,17 +294,23 @@ export const AddCardModal: React.FC = () => {
                         <div className="space-y-2">
                             <label className="block text-sm font-medium text-gray-700">
                                 智能提取内容
-                                {isAIAvailable && (
-                                    <span className="ml-2 text-xs text-green-600">AI 可用</span>
+                                {isAIChecking && (
+                                    <span className="ml-2 text-xs text-blue-600">🔄 检查 AI 可用性...</span>
+                                )}
+                                {!isAIChecking && isAIAvailable && (
+                                    <span className="ml-2 text-xs text-green-600">✓ AI 可用</span>
+                                )}
+                                {!isAIChecking && !isAIAvailable && (
+                                    <span className="ml-2 text-xs text-yellow-600">⚠ AI 不可用（将使用原文）</span>
                                 )}
                             </label>
                             <div className="grid grid-cols-3 gap-2">
                                 <button
                                     onClick={handleExtractSelection}
-                                    disabled={isLoading}
+                                    disabled={isAnyLoading || isAIChecking}
                                     className="relative px-3 py-2.5 bg-blue-500 text-white text-sm rounded-lg hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 transition-colors"
                                 >
-                                    {isLoading ? (
+                                    {extractingSelection ? (
                                         <Loader2 className="w-4 h-4 animate-spin" />
                                     ) : (
                                         <FileText className="w-4 h-4" />
@@ -224,10 +320,10 @@ export const AddCardModal: React.FC = () => {
 
                                 <button
                                     onClick={handleExtractWebpage}
-                                    disabled={isLoading}
+                                    disabled={isAnyLoading || isAIChecking}
                                     className="px-3 py-2.5 bg-green-500 text-white text-sm rounded-lg hover:bg-green-600 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 transition-colors"
                                 >
-                                    {isLoading ? (
+                                    {extractingWebpage ? (
                                         <Loader2 className="w-4 h-4 animate-spin" />
                                     ) : (
                                         <Globe className="w-4 h-4" />
@@ -237,7 +333,7 @@ export const AddCardModal: React.FC = () => {
 
                                 <button
                                     onClick={handleExtractVideo}
-                                    disabled={isLoading}
+                                    disabled={isAnyLoading || isAIChecking}
                                     className="px-3 py-2.5 bg-purple-500 text-white text-sm rounded-lg hover:bg-purple-600 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 transition-colors"
                                 >
                                     <Video className="w-4 h-4" />
@@ -251,10 +347,17 @@ export const AddCardModal: React.FC = () => {
                                 </div>
                             )}
 
-                            {isAIProcessing && (
+                            {isAIChecking && (
                                 <div className="mt-2 text-sm text-blue-600 bg-blue-50 p-2 rounded-lg flex items-center gap-2">
                                     <Loader2 className="w-4 h-4 animate-spin" />
-                                    正在使用 AI 智能提取和总结内容...
+                                    正在检查 Chrome AI 可用性...
+                                </div>
+                            )}
+
+                            {(extractingSelection || extractingWebpage || isAIProcessing) && !isAIChecking && (
+                                <div className="mt-2 text-sm text-blue-600 bg-blue-50 p-2 rounded-lg flex items-center gap-2">
+                                    <Loader2 className="w-4 h-4 animate-spin" />
+                                    正在使用 Chrome AI 智能提取和总结内容...
                                 </div>
                             )}
                         </div>
@@ -293,13 +396,12 @@ export const AddCardModal: React.FC = () => {
                         />
                     </div>
 
-                    {/* 分类选择器 - 向上展开 */}
                     <div className="relative" style={{ zIndex: 50 }}>
                         <label className="block text-sm font-medium mb-1 text-gray-700">分类</label>
                         <CategorySelector
                             value={formData.category}
                             onChange={(category) => setFormData({ ...formData, category })}
-                            dropDirection="up"  // 设置为向上展开
+                            dropDirection="up"
                         />
                     </div>
                 </div>
