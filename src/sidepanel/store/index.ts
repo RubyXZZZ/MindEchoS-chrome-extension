@@ -8,11 +8,15 @@ import {
     STORAGE_KEYS,
     CARD_COLORS
 } from '../utils/constants';
+import { SummarizeAI } from '../services/ai/summarizeAI';
 
-// Type for the data captured from the content script
+// Type for the data captured from the content script (enhanced with AI title)
 interface SelectionPayload {
     text: string;
     url: string;
+    title?: string;  // AI 生成的标题
+    originalText?: string;  // 原始文本（未总结的）
+    needsAISummarize?: boolean;  // 是否需要 AI 处理
 }
 
 interface AppState {
@@ -82,11 +86,59 @@ export const useStore = create<AppState>((set, get) => ({
     // --- Actions ---
 
     initialize: () => {
-        chrome.storage.onChanged.addListener((changes, areaName) => {
+        chrome.storage.onChanged.addListener(async (changes, areaName) => {
             if (areaName === 'session' && changes.pendingSelection) {
                 const { newValue } = changes.pendingSelection;
                 if (newValue) {
-                    set({ initialSelection: newValue, showAddModal: true });
+                    // 检查是否需要 AI 处理 - 使用 Chrome 138+ 的 Summarizer API
+                    if (newValue.needsAISummarize && 'Summarizer' in self) {
+                        try {
+                            const summarizer = SummarizeAI.getInstance();
+                            const summarized = await summarizer.summarizeSelection(
+                                newValue.text,
+                                newValue.url || ''
+                            );
+
+                            if (summarized.success) {
+                                set({
+                                    initialSelection: {
+                                        text: summarized.content || newValue.text,
+                                        title: summarized.title,
+                                        url: newValue.url,
+                                        originalText: newValue.text
+                                    },
+                                    showAddModal: true
+                                });
+                            } else {
+                                // AI 失败，使用降级处理
+                                set({
+                                    initialSelection: {
+                                        text: newValue.text.substring(0, 500) + '...',
+                                        title: newValue.text.substring(0, 50) + '...',
+                                        url: newValue.url
+                                    },
+                                    showAddModal: true
+                                });
+                            }
+                        } catch (error) {
+                            console.error('AI summarization failed:', error);
+                            // 降级处理
+                            set({
+                                initialSelection: {
+                                    text: newValue.text,
+                                    url: newValue.url
+                                },
+                                showAddModal: true
+                            });
+                        }
+                    } else {
+                        // 不需要 AI 处理或 Summarizer API 不可用
+                        set({
+                            initialSelection: newValue,
+                            showAddModal: true
+                        });
+                    }
+
                     chrome.storage.session.remove('pendingSelection');
                 }
             }
@@ -97,7 +149,54 @@ export const useStore = create<AppState>((set, get) => ({
         try {
             const result = await chrome.storage.session.get('pendingSelection');
             if (result.pendingSelection) {
-                set({ initialSelection: result.pendingSelection, showAddModal: true });
+                const pendingData = result.pendingSelection;
+
+                // 检查是否需要 AI 处理 - 使用 Chrome 138+ 的 Summarizer API
+                if (pendingData.needsAISummarize && 'Summarizer' in self) {
+                    try {
+                        const summarizer = SummarizeAI.getInstance();
+                        const summarized = await summarizer.summarizeSelection(
+                            pendingData.text,
+                            pendingData.url || ''
+                        );
+
+                        if (summarized.success) {
+                            set({
+                                initialSelection: {
+                                    text: summarized.content || pendingData.text,
+                                    title: summarized.title,
+                                    url: pendingData.url,
+                                    originalText: pendingData.text
+                                },
+                                showAddModal: true
+                            });
+                        } else {
+                            // AI 失败，使用降级处理
+                            set({
+                                initialSelection: {
+                                    text: pendingData.text.substring(0, 500) + '...',
+                                    title: pendingData.text.substring(0, 50) + '...',
+                                    url: pendingData.url
+                                },
+                                showAddModal: true
+                            });
+                        }
+                    } catch (error) {
+                        console.error('AI summarization failed:', error);
+                        // 降级处理
+                        set({
+                            initialSelection: pendingData,
+                            showAddModal: true
+                        });
+                    }
+                } else {
+                    // 不需要 AI 处理或 Summarizer API 不可用
+                    set({
+                        initialSelection: pendingData,
+                        showAddModal: true
+                    });
+                }
+
                 await chrome.storage.session.remove('pendingSelection');
             }
         } catch (error) {
@@ -108,10 +207,10 @@ export const useStore = create<AppState>((set, get) => ({
     loadStore: async () => {
         try {
             const result = await chrome.storage.local.get([STORAGE_KEYS.CARDS, STORAGE_KEYS.USER_CATEGORIES]);
-            
+
             // Debug logging
             console.log('Loading from storage:', result);
-            
+
             // Check if cards exist in storage and handle both undefined and empty cases
             if (!result[STORAGE_KEYS.CARDS] || !Array.isArray(result[STORAGE_KEYS.CARDS])) {
                 // First time user - create sample card
@@ -125,7 +224,7 @@ export const useStore = create<AppState>((set, get) => ({
                     category: DEFAULT_CATEGORY,
                     color: CARD_COLORS[0],
                 };
-                
+
                 // Save the sample card to storage
                 await chrome.storage.local.set({ [STORAGE_KEYS.CARDS]: [sampleCard] });
                 set({ cards: [sampleCard] });
@@ -139,7 +238,7 @@ export const useStore = create<AppState>((set, get) => ({
 
             // Load user categories
             if (result[STORAGE_KEYS.USER_CATEGORIES] && Array.isArray(result[STORAGE_KEYS.USER_CATEGORIES])) {
-                const loadedUserCategories = result[STORAGE_KEYS.USER_CATEGORIES].filter((c: any) => 
+                const loadedUserCategories = result[STORAGE_KEYS.USER_CATEGORIES].filter((c: any) =>
                     typeof c === 'string' && c.trim() !== ''
                 );
                 set({ userCategories: loadedUserCategories });
@@ -156,13 +255,13 @@ export const useStore = create<AppState>((set, get) => ({
         try {
             const currentCards = get().cards;
             const newCards = [...currentCards, card];
-            
+
             // Update state first
             set({ cards: newCards });
-            
+
             // Then persist to storage
             await chrome.storage.local.set({ [STORAGE_KEYS.CARDS]: newCards });
-            
+
             console.log('Card added successfully:', card.id);
             console.log('Total cards now:', newCards.length);
         } catch (error) {
@@ -179,10 +278,10 @@ export const useStore = create<AppState>((set, get) => ({
             const newCards = currentCards.map(card =>
                 card.id === id ? { ...card, ...updates } : card
             );
-            
+
             set({ cards: newCards });
             await chrome.storage.local.set({ [STORAGE_KEYS.CARDS]: newCards });
-            
+
             console.log('Card updated:', id);
         } catch (error) {
             console.error('Error updating card:', error);
@@ -193,10 +292,10 @@ export const useStore = create<AppState>((set, get) => ({
         try {
             const currentCards = get().cards;
             const newCards = currentCards.filter(card => card.id !== id);
-            
+
             set({ cards: newCards });
             await chrome.storage.local.set({ [STORAGE_KEYS.CARDS]: newCards });
-            
+
             console.log('Card deleted:', id);
         } catch (error) {
             console.error('Error deleting card:', error);
@@ -207,9 +306,9 @@ export const useStore = create<AppState>((set, get) => ({
         try {
             const state = get();
             const newCategory = category.trim();
-            
-            if (newCategory && 
-                ![...state.userCategories, ...PROTECTED_CATEGORIES].find(c => 
+
+            if (newCategory &&
+                ![...state.userCategories, ...PROTECTED_CATEGORIES].find(c =>
                     c.toLowerCase() === newCategory.toLowerCase()
                 )) {
                 const newUserCategories = [...state.userCategories, newCategory];
@@ -240,19 +339,19 @@ export const useStore = create<AppState>((set, get) => ({
             const newCards = state.cards.filter(card => card.category !== category);
             const newUserCategories = state.userCategories.filter(c => c !== category);
 
-            set({ 
-                cards: newCards, 
-                userCategories: newUserCategories, 
-                selectedCategory: ALL_CARDS_FILTER, 
-                categoryToDelete: null, 
-                showDeleteCategoryModal: false 
+            set({
+                cards: newCards,
+                userCategories: newUserCategories,
+                selectedCategory: ALL_CARDS_FILTER,
+                categoryToDelete: null,
+                showDeleteCategoryModal: false
             });
 
             await chrome.storage.local.set({
                 [STORAGE_KEYS.CARDS]: newCards,
                 [STORAGE_KEYS.USER_CATEGORIES]: newUserCategories
             });
-            
+
             console.log('Category and cards deleted:', category);
         } catch (error) {
             console.error('Error deleting category and cards:', error);
@@ -265,24 +364,24 @@ export const useStore = create<AppState>((set, get) => ({
             const category = state.categoryToDelete;
             if (!category || PROTECTED_CATEGORIES.includes(category)) return;
 
-            const newCards = state.cards.map(card => 
+            const newCards = state.cards.map(card =>
                 card.category === category ? { ...card, category: DEFAULT_CATEGORY } : card
             );
             const newUserCategories = state.userCategories.filter(c => c !== category);
 
-            set({ 
-                cards: newCards, 
-                userCategories: newUserCategories, 
-                selectedCategory: ALL_CARDS_FILTER, 
-                categoryToDelete: null, 
-                showDeleteCategoryModal: false 
+            set({
+                cards: newCards,
+                userCategories: newUserCategories,
+                selectedCategory: ALL_CARDS_FILTER,
+                categoryToDelete: null,
+                showDeleteCategoryModal: false
             });
 
             await chrome.storage.local.set({
                 [STORAGE_KEYS.CARDS]: newCards,
                 [STORAGE_KEYS.USER_CATEGORIES]: newUserCategories
             });
-            
+
             console.log('Category deleted and cards moved:', category);
         } catch (error) {
             console.error('Error moving cards and deleting category:', error);

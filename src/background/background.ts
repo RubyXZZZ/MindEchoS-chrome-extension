@@ -1,19 +1,15 @@
 // background.ts
-// 职责：处理用户操作（右键菜单、快捷键），管理 content script 注入，存储数据
+// 简化版：不处理 AI，只负责数据传递
+
+console.log('Background script loaded');
 
 // ============= Content Script 管理 =============
 
-/**
- * 确保 content script 已注入到指定标签页
- * @param tabId 标签页 ID
- */
 async function ensureContentScript(tabId: number): Promise<void> {
     try {
-        // 尝试 ping content script
         await chrome.tabs.sendMessage(tabId, { command: 'PING' });
         console.log(`Content script already active in tab ${tabId}`);
     } catch (_error) {
-        // Content script 不存在，需要注入
         console.log(`Injecting content script into tab ${tabId}`);
         try {
             await chrome.scripting.executeScript({
@@ -27,9 +23,6 @@ async function ensureContentScript(tabId: number): Promise<void> {
     }
 }
 
-/**
- * 在扩展安装/更新时注入 content script 到现有标签页
- */
 async function injectContentScriptToExistingTabs(): Promise<void> {
     const tabs = await chrome.tabs.query({ url: ["http://*/*", "https://*/*"] });
     for (const tab of tabs) {
@@ -40,96 +33,75 @@ async function injectContentScriptToExistingTabs(): Promise<void> {
                     files: ['content.js'],
                 });
             } catch (_err) {
-                // 忽略无法注入的页面（如 Chrome Web Store）
+                // 忽略无法注入的页面
             }
         }
     }
 }
 
-// ============= 数据处理 =============
+// ============= 数据处理（不进行 AI 处理）=============
 
-/**
- * 保存选中内容到 session storage
- * @param text 选中的文本
- * @param url 来源网页 URL
- */
 async function saveSelectionData(text: string, url: string): Promise<void> {
-    // 验证文本有效性（虽然 content script 已验证，但 fallback 文本也需要验证）
     if (!text || text.length <= 2) {
-        console.log('Invalid selection: text too short (<=2 characters)');
+        console.log('Invalid selection: text too short');
         return;
     }
 
-    const selectionData = {
-        text: text.substring(0, 5000), // 统一限制最大长度
-        url: url || ''
-    };
-
+    // 保存原始数据，标记需要 AI 处理
     await chrome.storage.session.set({
-        pendingSelection: selectionData
+        pendingSelection: {
+            text: text.substring(0, 5000),
+            url: url,
+            needsAISummarize: true  // 标记需要 AI 处理
+        }
     });
+    console.log('Selection data saved, waiting for sidepanel AI processing');
 }
 
-/**
- * 处理选中内容的捕获（统一处理右键菜单和快捷键）
- * @param tab 当前标签页
- * @param fallbackText 备用文本（来自右键菜单的 selectionText）
- */
 async function handleSelectionCapture(tab: chrome.tabs.Tab, fallbackText?: string): Promise<void> {
     if (!tab.id) return;
 
-    // 1. 立即打开侧边栏（响应用户操作）
     await chrome.sidePanel.open({ tabId: tab.id });
 
-    // 2. 尝试从 content script 获取选中文本
     try {
         await ensureContentScript(tab.id);
         await chrome.tabs.sendMessage(tab.id, { command: 'GET_SELECTION' });
     } catch (error) {
         console.error('Failed to get selection from content script:', error);
-
-        // 3. 如果失败且有备用文本，使用备用文本
         if (fallbackText) {
             await saveSelectionData(fallbackText, tab.url || '');
         }
     }
 }
 
-// ============= 扩展初始化 =============
+// ============= 初始化 =============
 
 chrome.runtime.onInstalled.addListener(async (details) => {
-    // 创建右键菜单
     chrome.contextMenus.create({
         id: "save-selection",
         title: "保存到知识卡片",
         contexts: ["selection"],
     });
 
-    // 安装或更新时，注入 content script 到现有标签页
     if (details.reason === 'install' || details.reason === 'update') {
         await injectContentScriptToExistingTabs();
     }
 });
 
-// ============= 用户操作处理 =============
+// ============= 用户操作 =============
 
-// 右键菜单点击
 chrome.contextMenus.onClicked.addListener(async (info, tab) => {
     if (info.menuItemId === "save-selection" && tab) {
-        // 统一处理，提供 fallback 文本
         await handleSelectionCapture(tab, info.selectionText);
     }
 });
 
-// 快捷键命令
 chrome.commands.onCommand.addListener(async (command, tab) => {
     if (command === "extract-knowledge" && tab) {
-        // 统一处理，无 fallback 文本
         await handleSelectionCapture(tab);
     }
 });
 
-// 扩展图标点击
 chrome.action.onClicked.addListener(async (tab) => {
     if (tab?.id) {
         await chrome.sidePanel.open({ tabId: tab.id });
@@ -138,13 +110,55 @@ chrome.action.onClicked.addListener(async (tab) => {
 
 // ============= 消息处理 =============
 
-// 接收来自 content script 的消息
-chrome.runtime.onMessage.addListener((message, sender) => {
+chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+    // 处理来自 content script 的选中数据
     if (message.type === 'SELECTION_DATA') {
-        // URL 已经在消息中，直接使用（更高效）
-        // 如果没有提供 URL，才从 sender.tab 获取作为备用
         const url = message.data.url || sender.tab?.url || '';
         saveSelectionData(message.data.text, url);
+        return false;
     }
-    return true;
+
+    // 处理来自 sidepanel 的 Selection 请求
+    if (message.command === 'GET_ACTIVE_TAB_SELECTION') {
+        chrome.tabs.query({ active: true, currentWindow: true }, async (tabs) => {
+            if (tabs[0]?.id) {
+                try {
+                    await ensureContentScript(tabs[0].id);
+                    const response = await chrome.tabs.sendMessage(tabs[0].id, {
+                        command: 'GET_SELECTION_FOR_MODAL'
+                    });
+                    sendResponse(response);
+                } catch (error) {
+                    sendResponse({
+                        success: false,
+                        error: '无法获取选中内容'
+                    });
+                }
+            }
+        });
+        return true;
+    }
+
+    // 处理来自 sidepanel 的 Webpage 请求
+    if (message.command === 'EXTRACT_CURRENT_WEBPAGE') {
+        chrome.tabs.query({ active: true, currentWindow: true }, async (tabs) => {
+            if (tabs[0]?.id) {
+                try {
+                    await ensureContentScript(tabs[0].id);
+                    const response = await chrome.tabs.sendMessage(tabs[0].id, {
+                        command: 'EXTRACT_WEBPAGE'
+                    });
+                    sendResponse(response);
+                } catch (error) {
+                    sendResponse({
+                        success: false,
+                        error: '无法提取网页内容'
+                    });
+                }
+            }
+        });
+        return true;
+    }
+
+    return false;
 });
