@@ -51,6 +51,9 @@ export const AddCardModal: React.FC = () => {
     const streamingTitle = useRef('');
     const streamingContent = useRef('');
 
+    // 用于中断流式处理
+    const abortController = useRef<AbortController | null>(null);
+
     // 重置函数
     const resetModal = () => {
         setFormData({ title: '', content: '', category: DEFAULT_CATEGORY, url: '' });
@@ -58,6 +61,28 @@ export const AddCardModal: React.FC = () => {
         setExtractingSelection(false);
         setExtractingWebpage(false);
         hasProcessedAutoAI.current = false;
+
+        // 中断正在进行的流式处理
+        if (abortController.current) {
+            abortController.current.abort();
+            abortController.current = null;
+        }
+    };
+
+    // 处理关闭 Modal
+    const handleClose = () => {
+        const isProcessing = extractingSelection || extractingWebpage || isAIProcessing;
+
+        if (isProcessing) {
+            const confirmed = window.confirm(
+                'AI 正在生成内容，关闭将中断处理。确定要关闭吗？'
+            );
+            if (!confirmed) {
+                return; // 用户取消关闭
+            }
+        }
+
+        setShowAddModal(false);
     };
 
     // 处理右键/快捷键的自动 AI 总结（流式）
@@ -342,7 +367,11 @@ export const AddCardModal: React.FC = () => {
             <div className="bg-white rounded-xl shadow-2xl max-w-2xl w-full max-h-[90vh] flex flex-col relative z-[10001]">
                 <div className="p-4 border-b flex items-center justify-between flex-shrink-0">
                     <h2 className="text-lg font-semibold">{isEditing ? '编辑知识卡片' : '添加知识卡片'}</h2>
-                    <button onClick={() => setShowAddModal(false)} className="text-gray-500 hover:text-gray-700">
+                    <button
+                        onClick={handleClose}
+                        className="text-gray-500 hover:text-gray-700"
+                        title="关闭"
+                    >
                         <X className="w-5 h-5" />
                     </button>
                 </div>
@@ -427,7 +456,7 @@ export const AddCardModal: React.FC = () => {
                             type="text"
                             value={formData.title}
                             onChange={(e) => setFormData({...formData, title: e.target.value})}
-                            className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
                             placeholder="输入卡片标题..."
                         />
                     </div>
@@ -437,7 +466,7 @@ export const AddCardModal: React.FC = () => {
                         <textarea
                             value={formData.content}
                             onChange={(e) => setFormData({...formData, content: e.target.value})}
-                            className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
                             rows={8}
                             placeholder="详细内容..."
                         />
@@ -449,7 +478,7 @@ export const AddCardModal: React.FC = () => {
                             type="url"
                             value={formData.url}
                             onChange={(e) => setFormData({...formData, url: e.target.value})}
-                            className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
                             placeholder="https://..."
                         />
                     </div>
@@ -466,7 +495,7 @@ export const AddCardModal: React.FC = () => {
 
                 <div className="p-4 border-t flex justify-end gap-2 flex-shrink-0">
                     <button
-                        onClick={() => setShowAddModal(false)}
+                        onClick={handleClose}
                         className="px-4 py-2 border border-gray-300 rounded-lg text-sm hover:bg-gray-50 transition-colors"
                     >
                         取消
