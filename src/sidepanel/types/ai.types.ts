@@ -10,7 +10,7 @@ export interface SummarizerMonitor {
 
 export interface SummarizerOptions {
     sharedContext?: string;
-    type?: 'key-points' | 'tl;dr' | 'teaser' | 'headline';
+    type?: 'key-points' | 'tldr' | 'teaser' | 'headline';
     format?: 'markdown' | 'plain-text';
     length?: 'short' | 'medium' | 'long';
     monitor?: (m: SummarizerMonitor) => void;
@@ -18,7 +18,7 @@ export interface SummarizerOptions {
 
 export interface SummarizerInstance {
     summarize(text: string, options?: { context?: string }): Promise<string>;
-    summarizeStreaming(text: string, options?: { context?: string }): ReadableStream<string>;
+    summarizeStreaming(text: string, options?: { context?: string }): AsyncIterable<string>;
     destroy(): void;
 }
 

@@ -36,10 +36,20 @@ export const AddCardModal: React.FC = () => {
     const [extractError, setExtractError] = useState<string>('');
 
     // 使用 AI Hook
-    const { summarizeText, summarizeWebpage, isProcessing: isAIProcessing, isAvailable: isAIAvailable, isChecking: isAIChecking } = useAISummarizer();
+    const {
+        summarizeTextStreaming,
+        summarizeWebpageStreaming,
+        isProcessing: isAIProcessing,
+        isAvailable: isAIAvailable,
+        isChecking: isAIChecking
+    } = useAISummarizer();
 
     // 跟踪是否已处理过右键/快捷键的自动 AI 总结
     const hasProcessedAutoAI = useRef(false);
+
+    // 用于累积流式输出的临时状态
+    const streamingTitle = useRef('');
+    const streamingContent = useRef('');
 
     // 重置函数
     const resetModal = () => {
@@ -50,7 +60,7 @@ export const AddCardModal: React.FC = () => {
         hasProcessedAutoAI.current = false;
     };
 
-    // 处理右键/快捷键的自动 AI 总结
+    // 处理右键/快捷键的自动 AI 总结（流式）
     useEffect(() => {
         const processAutoAI = async () => {
             if (!showAddModal || !initialSelection || !initialSelection.needsAISummarize) {
@@ -67,47 +77,57 @@ export const AddCardModal: React.FC = () => {
                 return;
             }
 
-            console.log('[AddCardModal] Auto-processing AI for right-click/shortcut selection');
+            console.log('[AddCardModal] Auto-processing AI (STREAMING) for right-click/shortcut');
             console.log('[AddCardModal] AI Available:', isAIAvailable);
             hasProcessedAutoAI.current = true;
             setExtractingSelection(true);
 
+            let initialCategory = DEFAULT_CATEGORY;
+            if (selectedCategory !== ALL_CARDS_FILTER) {
+                initialCategory = selectedCategory;
+            }
+
+            // 重置流式累积
+            streamingTitle.current = '';
+            streamingContent.current = '';
+
             try {
-                const summarized = await summarizeText(
+                await summarizeTextStreaming(
                     initialSelection.text,
-                    initialSelection.url
+                    initialSelection.url,
+                    // 标题流式回调 - 接收累积的完整文本
+                    (titleChunk) => {
+                        console.log('[AddCardModal] Title update:', titleChunk.substring(0, 50));
+                        streamingTitle.current = titleChunk;
+                        setFormData(prev => ({
+                            ...prev,
+                            title: titleChunk,
+                            category: initialCategory,
+                            url: initialSelection.url || ''
+                        }));
+                    },
+                    // 内容流式回调 - 接收累积的完整文本
+                    (contentChunk) => {
+                        console.log('[AddCardModal] Content update, length:', contentChunk.length);
+                        streamingContent.current = contentChunk;
+                        setFormData(prev => ({
+                            ...prev,
+                            content: contentChunk
+                        }));
+                    }
                 );
 
-                console.log('[AddCardModal] Auto AI result:', summarized);
-
-                let initialCategory = DEFAULT_CATEGORY;
-                if (selectedCategory !== ALL_CARDS_FILTER) {
-                    initialCategory = selectedCategory;
-                }
-
-                if (summarized.success && summarized.content) {
-                    setFormData({
-                        title: summarized.title || initialSelection.text.substring(0, 50) + '...',
-                        content: summarized.content,
-                        category: initialCategory,
-                        url: initialSelection.url || ''
-                    });
-                } else {
-                    // AI 失败，使用原文
-                    console.warn('[AddCardModal] AI failed, using original text');
-                    setFormData({
-                        title: initialSelection.text.substring(0, 50) + '...',
-                        content: initialSelection.text,
-                        category: initialCategory,
-                        url: initialSelection.url || ''
-                    });
-                }
+                // 流式结束后，一次性更新表单
+                console.log('[AddCardModal] Streaming completed, updating form');
+                setFormData({
+                    title: streamingTitle.current || initialSelection.text.substring(0, 50) + '...',
+                    content: streamingContent.current || initialSelection.text,
+                    category: initialCategory,
+                    url: initialSelection.url || ''
+                });
             } catch (error) {
-                console.error('[AddCardModal] Auto AI error:', error);
-                let initialCategory = DEFAULT_CATEGORY;
-                if (selectedCategory !== ALL_CARDS_FILTER) {
-                    initialCategory = selectedCategory;
-                }
+                console.error('[AddCardModal] Auto AI streaming error:', error);
+                // 出错时使用原文
                 setFormData({
                     title: initialSelection.text.substring(0, 50) + '...',
                     content: initialSelection.text,
@@ -120,7 +140,7 @@ export const AddCardModal: React.FC = () => {
         };
 
         processAutoAI();
-    }, [showAddModal, initialSelection, summarizeText, selectedCategory, isAIChecking, isAIAvailable]);
+    }, [showAddModal, initialSelection, summarizeTextStreaming, selectedCategory, isAIChecking, isAIAvailable]);
 
     // 处理表单初始化（编辑模式或空白卡片）
     useEffect(() => {
@@ -161,13 +181,13 @@ export const AddCardModal: React.FC = () => {
         // 如果 needsAISummarize 为 true，表单会由上面的 useEffect 处理
     }, [showAddModal, editingCardData, editingCard, setEditingCard, initialSelection, setInitialSelection, selectedCategory]);
 
-    // 处理 Selection 按钮点击（手动提取）
+    // 处理 Selection 按钮点击（手动提取 - 流式）
     const handleExtractSelection = async () => {
         setExtractingSelection(true);
         setExtractError('');
 
         try {
-            console.log('[AddCardModal] Manual Selection button clicked');
+            console.log('[AddCardModal] Manual Selection button clicked (STREAMING)');
             const response = await chrome.runtime.sendMessage({
                 command: 'GET_ACTIVE_TAB_SELECTION'
             });
@@ -175,24 +195,42 @@ export const AddCardModal: React.FC = () => {
             console.log('[AddCardModal] Content script response:', response);
 
             if (response && response.success) {
-                console.log('[AddCardModal] Calling AI summarizer for selection...');
-                const summarized = await summarizeText(
+                console.log('[AddCardModal] Calling streaming AI summarizer for selection...');
+
+                // 重置流式累积
+                streamingTitle.current = '';
+                streamingContent.current = '';
+
+                await summarizeTextStreaming(
                     response.data.text,
-                    response.data.url
+                    response.data.url,
+                    // 标题流式回调 - 接收累积的完整文本
+                    (titleChunk) => {
+                        streamingTitle.current = titleChunk;
+                        setFormData(prev => ({
+                            ...prev,
+                            title: titleChunk,
+                            url: response.data.url || prev.url
+                        }));
+                    },
+                    // 内容流式回调 - 接收累积的完整文本
+                    (contentChunk) => {
+                        streamingContent.current = contentChunk;
+                        setFormData(prev => ({
+                            ...prev,
+                            content: contentChunk
+                        }));
+                    }
                 );
 
-                console.log('[AddCardModal] Selection summarize result:', summarized);
-
-                if (summarized.success && summarized.content) {
-                    setFormData({
-                        ...formData,
-                        title: summarized.title || response.data.text.substring(0, 50) + '...',
-                        content: summarized.content,
-                        url: response.data.url || formData.url
-                    });
-                } else {
-                    setExtractError(summarized.error || '总结失败');
-                }
+                // 流式结束后，一次性更新表单
+                console.log('[AddCardModal] Selection streaming completed');
+                setFormData(prev => ({
+                    ...prev,
+                    title: streamingTitle.current || response.data.text.substring(0, 50) + '...',
+                    content: streamingContent.current || response.data.text,
+                    url: response.data.url || prev.url
+                }));
             } else {
                 setExtractError(response?.error || '无法获取选中内容');
             }
@@ -204,13 +242,13 @@ export const AddCardModal: React.FC = () => {
         }
     };
 
-    // 处理 Webpage 按钮点击（提取网页内容）
+    // 处理 Webpage 按钮点击（提取网页内容 - 流式）
     const handleExtractWebpage = async () => {
         setExtractingWebpage(true);
         setExtractError('');
 
         try {
-            console.log('[AddCardModal] Manual Webpage button clicked');
+            console.log('[AddCardModal] Manual Webpage button clicked (STREAMING)');
             const response = await chrome.runtime.sendMessage({
                 command: 'EXTRACT_CURRENT_WEBPAGE'
             });
@@ -218,21 +256,41 @@ export const AddCardModal: React.FC = () => {
             console.log('[AddCardModal] Webpage extract response:', response);
 
             if (response && response.success) {
-                console.log('[AddCardModal] Calling AI webpage summarizer...');
-                const summarized = await summarizeWebpage(response.data);
+                console.log('[AddCardModal] Calling streaming AI webpage summarizer...');
 
-                console.log('[AddCardModal] Webpage summarize result:', summarized);
+                // 重置流式累积
+                streamingTitle.current = '';
+                streamingContent.current = '';
 
-                if (summarized.success && summarized.content) {
-                    setFormData({
-                        ...formData,
-                        title: summarized.title || response.data.title,
-                        content: summarized.content,
-                        url: response.data.url || formData.url
-                    });
-                } else {
-                    setExtractError(summarized.error || '总结失败');
-                }
+                await summarizeWebpageStreaming(
+                    response.data,
+                    // 标题流式回调 - 接收累积的完整文本
+                    (titleChunk) => {
+                        streamingTitle.current = titleChunk;
+                        setFormData(prev => ({
+                            ...prev,
+                            title: titleChunk,
+                            url: response.data.url || prev.url
+                        }));
+                    },
+                    // 内容流式回调 - 接收累积的完整文本
+                    (contentChunk) => {
+                        streamingContent.current = contentChunk;
+                        setFormData(prev => ({
+                            ...prev,
+                            content: contentChunk
+                        }));
+                    }
+                );
+
+                // 流式结束后，一次性更新表单
+                console.log('[AddCardModal] Webpage streaming completed');
+                setFormData(prev => ({
+                    ...prev,
+                    title: streamingTitle.current || response.data.title,
+                    content: streamingContent.current || response.data.content,
+                    url: response.data.url || prev.url
+                }));
             } else {
                 setExtractError(response?.error || '无法提取网页内容');
             }

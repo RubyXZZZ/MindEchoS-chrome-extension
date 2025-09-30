@@ -5,15 +5,16 @@
   "description": "Simple knowledge management with AI",
   "permissions": [
     "storage",
-    "tabs",
     "activeTab",
     "sidePanel",
     "contextMenus",
     "scripting"
   ],
   "host_permissions": [
-    "<all_urls>"
+    "http://*/*",
+    "https://*/*"
   ],
+
   "background": {
     "service_worker": "background.js",
     "type": "module"

@@ -12,8 +12,17 @@ interface SummarizeResult {
 }
 
 interface UseAISummarizerReturn {
-    summarizeText: (text: string, url: string) => Promise<SummarizeResult>;
-    summarizeWebpage: (pageData: { title: string; content: string; url: string }) => Promise<SummarizeResult>;
+    summarizeTextStreaming: (
+        text: string,
+        url: string,
+        onTitleChunk: (chunk: string) => void,
+        onContentChunk: (chunk: string) => void
+    ) => Promise<SummarizeResult>;
+    summarizeWebpageStreaming: (
+        pageData: { title: string; content: string; url: string },
+        onTitleChunk: (chunk: string) => void,
+        onContentChunk: (chunk: string) => void
+    ) => Promise<SummarizeResult>;
     isProcessing: boolean;
     isAvailable: boolean;
     isChecking: boolean;
@@ -67,73 +76,99 @@ export function useAISummarizer(): UseAISummarizerReturn {
         checkAvailability();
     }, []);
 
-    const summarizeText = useCallback(async (
+    const summarizeTextStreaming = useCallback(async (
         text: string,
-        url: string
+        url: string,
+        onTitleChunk: (chunk: string) => void,
+        onContentChunk: (chunk: string) => void
     ): Promise<SummarizeResult> => {
-        console.log('[AI Hook] summarizeText called');
+        console.log('[AI Hook] summarizeTextStreaming called');
         console.log('[AI Hook] - Text length:', text.length);
-        console.log('[AI Hook] - URL:', url);
         console.log('[AI Hook] - isAvailable:', isAvailable);
 
         if (!isAvailable) {
             console.log('[AI Hook] Using fallback (AI not available)');
+            const fallbackTitle = text.substring(0, 50) + (text.length > 50 ? '...' : '');
+            const fallbackContent = text;
+            onTitleChunk(fallbackTitle);
+            onContentChunk(fallbackContent);
             return {
                 success: true,
-                title: text.substring(0, 50) + (text.length > 50 ? '...' : ''),
-                content: text  // 返回完整文本
+                title: fallbackTitle,
+                content: fallbackContent
             };
         }
 
         setIsProcessing(true);
         try {
-            console.log('[AI Hook] Calling SummarizeAI.summarizeSelection...');
+            console.log('[AI Hook] Calling streaming summarization...');
             const summarizer = SummarizeAI.getInstance();
-            const result = await summarizer.summarizeSelection(text, url);
-            console.log('[AI Hook] AI result:', result);
+            const result = await summarizer.summarizeSelectionStreaming(
+                text,
+                url,
+                onTitleChunk,
+                onContentChunk
+            );
+            console.log('[AI Hook] Streaming completed:', result);
             return result;
         } catch (error) {
-            console.error('[AI Hook] Summarize error:', error);
+            console.error('[AI Hook] Streaming error:', error);
+            const fallbackTitle = text.substring(0, 50) + '...';
+            const fallbackContent = text;
+            onTitleChunk(fallbackTitle);
+            onContentChunk(fallbackContent);
             return {
                 success: true,
-                title: text.substring(0, 50) + '...',
-                content: text  // 出错时返回完整文本
+                title: fallbackTitle,
+                content: fallbackContent
             };
         } finally {
             setIsProcessing(false);
         }
     }, [isAvailable]);
 
-    const summarizeWebpage = useCallback(async (
-        pageData: { title: string; content: string; url: string }
+    const summarizeWebpageStreaming = useCallback(async (
+        pageData: { title: string; content: string; url: string },
+        onTitleChunk: (chunk: string) => void,
+        onContentChunk: (chunk: string) => void
     ): Promise<SummarizeResult> => {
-        console.log('[AI Hook] summarizeWebpage called');
+        console.log('[AI Hook] summarizeWebpageStreaming called');
         console.log('[AI Hook] - Page title:', pageData.title);
         console.log('[AI Hook] - Content length:', pageData.content.length);
         console.log('[AI Hook] - isAvailable:', isAvailable);
 
         if (!isAvailable) {
             console.log('[AI Hook] Using fallback for webpage (AI not available)');
+            const fallbackContent = pageData.content.substring(0, 500) + (pageData.content.length > 500 ? '...' : '');
+            onTitleChunk(pageData.title);
+            onContentChunk(fallbackContent);
             return {
                 success: true,
                 title: pageData.title,
-                content: pageData.content.substring(0, 500) + (pageData.content.length > 500 ? '...' : '')
+                content: fallbackContent
             };
         }
 
         setIsProcessing(true);
         try {
-            console.log('[AI Hook] Calling SummarizeAI.summarizeWebpage...');
+            console.log('[AI Hook] Calling streaming webpage summarization...');
             const summarizer = SummarizeAI.getInstance();
-            const result = await summarizer.summarizeWebpage(pageData);
-            console.log('[AI Hook] Webpage AI result:', result);
+            const result = await summarizer.summarizeWebpageStreaming(
+                pageData,
+                onTitleChunk,
+                onContentChunk
+            );
+            console.log('[AI Hook] Webpage streaming completed:', result);
             return result;
         } catch (error) {
-            console.error('[AI Hook] Summarize webpage error:', error);
+            console.error('[AI Hook] Webpage streaming error:', error);
+            const fallbackContent = pageData.content.substring(0, 500) + '...';
+            onTitleChunk(pageData.title);
+            onContentChunk(fallbackContent);
             return {
                 success: true,
                 title: pageData.title,
-                content: pageData.content.substring(0, 500) + '...'
+                content: fallbackContent
             };
         } finally {
             setIsProcessing(false);
@@ -141,8 +176,8 @@ export function useAISummarizer(): UseAISummarizerReturn {
     }, [isAvailable]);
 
     return {
-        summarizeText,
-        summarizeWebpage,
+        summarizeTextStreaming,
+        summarizeWebpageStreaming,
         isProcessing,
         isAvailable,
         isChecking

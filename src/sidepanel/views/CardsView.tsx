@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useCallback } from 'react';
-import { Plus, Search, X } from 'lucide-react';
+import { Plus, Search, X, Check } from 'lucide-react';
 import { useStore } from '../store';
 import { CardItem } from '../components/cards/CardItem';
 import { ALL_CARDS_FILTER, DEFAULT_CATEGORY, PROTECTED_CATEGORIES } from '../utils/constants';
@@ -17,9 +17,9 @@ const EXPANDED_CARD_HEIGHT = 300;
 const COLLAPSED_CARD_HEIGHT = 180;
 
 export const CardsView: React.FC<CardsViewProps> = ({
-    manageModeState,
-    onCardSelect
-}) => {
+                                                        manageModeState,
+                                                        onCardSelect
+                                                    }) => {
     const {
         cards,
         searchQuery,
@@ -39,7 +39,6 @@ export const CardsView: React.FC<CardsViewProps> = ({
 
     const filteredCards = useMemo(() => {
         return cards.filter(card => {
-            // FIX: Consistently treat cards without a category as DEFAULT_CATEGORY
             const cardCategory = card.category || DEFAULT_CATEGORY;
 
             const matchesSearch = !searchQuery ||
@@ -47,11 +46,9 @@ export const CardsView: React.FC<CardsViewProps> = ({
                 card.content.toLowerCase().includes(searchQuery.toLowerCase()) ||
                 cardCategory.toLowerCase().includes(searchQuery.toLowerCase());
 
-            // FIX: Ensure filtering logic uses the resolved category
             const matchesCategory = selectedCategory === ALL_CARDS_FILTER || cardCategory === selectedCategory;
-            
+
             return matchesSearch && matchesCategory;
-        // FIX: Sort by timestamp ascending (oldest first, newest at the bottom)
         }).sort((a, b) => a.timestamp - b.timestamp);
     }, [cards, searchQuery, selectedCategory]);
 
@@ -73,11 +70,17 @@ export const CardsView: React.FC<CardsViewProps> = ({
     }, [expandedCard, setExpandedCard]);
 
     const handleAddNewCategory = () => {
-        if (newCategoryValue.trim()) {
-            addCategory(newCategoryValue.trim());
+        const trimmedValue = newCategoryValue.trim();
+        if (trimmedValue) {
+            addCategory(trimmedValue);
             setNewCategoryValue('');
             setShowNewCategoryInput(false);
         }
+    };
+
+    const handleCancelNewCategory = () => {
+        setShowNewCategoryInput(false);
+        setNewCategoryValue('');
     };
 
     const { cardPositions, containerHeight } = useMemo(() => {
@@ -100,9 +103,9 @@ export const CardsView: React.FC<CardsViewProps> = ({
         return { cardPositions: positions, containerHeight: Math.max(height, 400) };
     }, [filteredCards, expandedCard]);
 
-    const filterOptions = useMemo(() => 
-        [...new Set([ALL_CARDS_FILTER, ...userCategories, DEFAULT_CATEGORY])],
-    [userCategories]);
+    const filterOptions = useMemo(() =>
+            [...new Set([ALL_CARDS_FILTER, ...userCategories, DEFAULT_CATEGORY])],
+        [userCategories]);
 
     return (
         <div className="flex-1 flex flex-col h-full">
@@ -154,14 +157,29 @@ export const CardsView: React.FC<CardsViewProps> = ({
                                     type="text"
                                     value={newCategoryValue}
                                     onChange={(e) => setNewCategoryValue(e.target.value)}
-                                    onKeyPress={(e) => e.key === 'Enter' && handleAddNewCategory()}
+                                    onKeyPress={(e) => e.key === 'Enter' && newCategoryValue.trim() && handleAddNewCategory()}
                                     className="w-24 px-2 py-1 bg-white border border-gray-300 rounded-md text-xs focus:outline-none focus:ring-1 focus:ring-emerald-500"
                                     placeholder="新分类"
                                     autoFocus
-                                    onBlur={() => !newCategoryValue && setShowNewCategoryInput(false)}
                                 />
-                                <button onClick={handleAddNewCategory} className="p-1 bg-emerald-500 text-white rounded-full hover:bg-emerald-600">
-                                    <Plus className="w-3 h-3" />
+                                <button
+                                    onClick={handleAddNewCategory}
+                                    disabled={!newCategoryValue.trim()}
+                                    className={`p-1 rounded-full transition-colors ${
+                                        newCategoryValue.trim()
+                                            ? 'bg-emerald-500 text-white hover:bg-emerald-600'
+                                            : 'bg-gray-200 text-gray-400 cursor-not-allowed'
+                                    }`}
+                                    title="确认添加"
+                                >
+                                    <Check className="w-3 h-3" />
+                                </button>
+                                <button
+                                    onClick={handleCancelNewCategory}
+                                    className="p-1 bg-red-500 text-white rounded-full hover:bg-red-600 transition-colors"
+                                    title="取消"
+                                >
+                                    <X className="w-3 h-3" />
                                 </button>
                             </div>
                         ) : (
@@ -211,7 +229,6 @@ export const CardsView: React.FC<CardsViewProps> = ({
                         <p className="text-gray-400 text-xs">{searchQuery || selectedCategory !== ALL_CARDS_FILTER ? '试试其他搜索词或分类' : '点击右下角按钮创建第一张卡片'}</p>
                     </div>
                 )}
-                {/* Floating Action Button is now inside CardsView */}
                 <button
                     onClick={() => setShowAddModal(true)}
                     className="fixed bottom-4 right-4 w-12 h-12 bg-emerald-500 text-white rounded-full shadow-lg hover:bg-emerald-600 transition-all flex items-center justify-center z-20"
