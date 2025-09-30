@@ -3,6 +3,7 @@ import { Clock, Link, Trash2, Edit2, ChevronDown, ChevronUp } from 'lucide-react
 import { KnowledgeCard } from '../../types/card.types';
 import { useStore } from '../../store';
 import { formatTime } from '../../utils/formatters';
+import { MarkdownRenderer } from '../cards/MarkdownRenderer';
 
 interface CardItemProps {
     card: KnowledgeCard;
@@ -15,14 +16,14 @@ interface CardItemProps {
 }
 
 export const CardItem: React.FC<CardItemProps> = ({
-    card,
-    isManageMode,
-    isSelected,
-    onSelect,
-    isExpanded,
-    onExpand,
-    isOverlapping = false
-}) => {
+                                                      card,
+                                                      isManageMode,
+                                                      isSelected,
+                                                      onSelect,
+                                                      isExpanded,
+                                                      onExpand,
+                                                      isOverlapping = false
+                                                  }) => {
     const { deleteCard, setEditingCard, setShowAddModal } = useStore();
 
     const handleDelete = (e: React.MouseEvent) => {
@@ -85,17 +86,21 @@ export const CardItem: React.FC<CardItemProps> = ({
                 {/* Content Area: Switches between preview and full view */}
                 <div className="flex-grow overflow-hidden">
                     {isExpanded ? (
-                        // Expanded view: Full, scrollable content
-                        <div className="mt-3 pt-3 border-t border-gray-200/50 h-full">
-                            <div className="text-xs text-gray-700 whitespace-pre-wrap h-full overflow-y-auto pr-2">
-                                {card.content}
-                            </div>
+                        // Expanded view: Full, scrollable content with Markdown rendering
+                        <div className="mt-3 pt-3 border-t border-gray-200/50 h-full overflow-y-auto pr-2">
+                            <MarkdownRenderer
+                                content={card.content}
+                                className="text-xs"
+                            />
                         </div>
                     ) : (
-                        // Collapsed view: Truncated preview
-                        <p className="text-xs text-gray-700 line-clamp-3">
-                            {card.content}
-                        </p>
+                        // Collapsed view: Truncated preview with Markdown rendering
+                        <div className="line-clamp-3 text-xs">
+                            <MarkdownRenderer
+                                content={card.content}
+                                className="text-xs"
+                            />
+                        </div>
                     )}
                 </div>
 
