@@ -1,3 +1,5 @@
+
+
 import React, { useState, useMemo, useCallback } from 'react';
 import { Plus, Search, X, Check } from 'lucide-react';
 import { useStore } from '../store';
@@ -13,7 +15,7 @@ interface CardsViewProps {
 }
 
 const CARD_OFFSET = 50;
-const EXPANDED_CARD_HEIGHT = 300;
+const EXPANDED_CARD_HEIGHT = 400;  // 改为 400，匹配 CardItem 的实际高度
 const COLLAPSED_CARD_HEIGHT = 180;
 
 export const CardsView: React.FC<CardsViewProps> = ({
@@ -142,7 +144,7 @@ export const CardsView: React.FC<CardsViewProps> = ({
                                         e.stopPropagation();
                                         triggerDeleteCategory(filter);
                                     }}
-                                    className="absolute -top-1.5 -right-1.5 w-4 h-4 bg-red-500 text-white rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-600"
+                                    className="absolute -top-1.5 -right-1.5 w-4 h-4 bg-red-500 text-white rounded-full flex items-center justify-center hover:bg-red-600 transition-colors"
                                     title={`删除分类 "${filter}"`}
                                 >
                                     <X className="w-3 h-3" />

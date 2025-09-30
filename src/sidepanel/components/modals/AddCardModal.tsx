@@ -5,6 +5,7 @@ import { KnowledgeCard } from '../../types/card.types';
 import { CARD_COLORS, DEFAULT_CATEGORY, ALL_CARDS_FILTER } from '../../utils/constants';
 import { useAISummarizer } from '../../hooks/useAISummarizer';
 import { CategorySelector } from '../layout/CategorySelector';
+import { ConfirmDialog } from '../modals/ConfirmDialog';
 
 export const AddCardModal: React.FC = () => {
     const {
@@ -34,6 +35,7 @@ export const AddCardModal: React.FC = () => {
     const [extractingSelection, setExtractingSelection] = useState(false);
     const [extractingWebpage, setExtractingWebpage] = useState(false);
     const [extractError, setExtractError] = useState<string>('');
+    const [showCloseConfirm, setShowCloseConfirm] = useState(false);
 
     // 使用 AI Hook
     const {
@@ -74,15 +76,21 @@ export const AddCardModal: React.FC = () => {
         const isProcessing = extractingSelection || extractingWebpage || isAIProcessing;
 
         if (isProcessing) {
-            const confirmed = window.confirm(
-                'AI 正在生成内容，关闭将中断处理。确定要关闭吗？'
-            );
-            if (!confirmed) {
-                return; // 用户取消关闭
-            }
+            setShowCloseConfirm(true);
+        } else {
+            setShowAddModal(false);
         }
+    };
 
+    // 确认关闭并中断 AI
+    const handleConfirmClose = () => {
+        setShowCloseConfirm(false);
         setShowAddModal(false);
+    };
+
+    // 取消关闭
+    const handleCancelClose = () => {
+        setShowCloseConfirm(false);
     };
 
     // 处理右键/快捷键的自动 AI 总结（流式）
@@ -363,152 +371,165 @@ export const AddCardModal: React.FC = () => {
     if (!showAddModal) return null;
 
     return (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-[10000]">
-            <div className="bg-white rounded-xl shadow-2xl max-w-2xl w-full max-h-[90vh] flex flex-col relative z-[10001]">
-                <div className="p-4 border-b flex items-center justify-between flex-shrink-0">
-                    <h2 className="text-lg font-semibold">{isEditing ? '编辑知识卡片' : '添加知识卡片'}</h2>
-                    <button
-                        onClick={handleClose}
-                        className="text-gray-500 hover:text-gray-700"
-                        title="关闭"
-                    >
-                        <X className="w-5 h-5" />
-                    </button>
-                </div>
+        <>
+            <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-[10000]">
+                <div className="bg-white rounded-xl shadow-2xl max-w-2xl w-full max-h-[90vh] flex flex-col relative z-[10001]">
+                    <div className="p-4 border-b flex items-center justify-between flex-shrink-0">
+                        <h2 className="text-lg font-semibold">{isEditing ? '编辑知识卡片' : '添加知识卡片'}</h2>
+                        <button
+                            onClick={handleClose}
+                            className="text-gray-500 hover:text-gray-700"
+                            title="关闭"
+                        >
+                            <X className="w-5 h-5" />
+                        </button>
+                    </div>
 
-                <div className="p-4 space-y-4 overflow-y-auto flex-grow">
-                    {!isEditing && (
-                        <div className="space-y-2">
-                            <label className="block text-sm font-medium text-gray-700">
-                                智能提取内容
+                    <div className="p-4 space-y-4 overflow-y-auto flex-grow">
+                        {!isEditing && (
+                            <div className="space-y-2">
+                                <label className="block text-sm font-medium text-gray-700">
+                                    智能提取内容
+                                    {isAIChecking && (
+                                        <span className="ml-2 text-xs text-blue-600">🔄 检查 AI 可用性...</span>
+                                    )}
+                                    {!isAIChecking && isAIAvailable && (
+                                        <span className="ml-2 text-xs text-green-600">✓ AI 可用</span>
+                                    )}
+                                    {!isAIChecking && !isAIAvailable && (
+                                        <span className="ml-2 text-xs text-yellow-600">⚠ AI 不可用（将使用原文）</span>
+                                    )}
+                                </label>
+                                <div className="grid grid-cols-3 gap-2">
+                                    <button
+                                        onClick={handleExtractSelection}
+                                        disabled={isAnyLoading || isAIChecking}
+                                        className="relative px-3 py-2.5 bg-blue-500 text-white text-sm rounded-lg hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 transition-colors"
+                                    >
+                                        {extractingSelection ? (
+                                            <Loader2 className="w-4 h-4 animate-spin" />
+                                        ) : (
+                                            <FileText className="w-4 h-4" />
+                                        )}
+                                        <span>Selection</span>
+                                    </button>
+
+                                    <button
+                                        onClick={handleExtractWebpage}
+                                        disabled={isAnyLoading || isAIChecking}
+                                        className="px-3 py-2.5 bg-green-500 text-white text-sm rounded-lg hover:bg-green-600 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 transition-colors"
+                                    >
+                                        {extractingWebpage ? (
+                                            <Loader2 className="w-4 h-4 animate-spin" />
+                                        ) : (
+                                            <Globe className="w-4 h-4" />
+                                        )}
+                                        <span>Webpage</span>
+                                    </button>
+
+                                    <button
+                                        onClick={handleExtractVideo}
+                                        disabled={isAnyLoading || isAIChecking}
+                                        className="px-3 py-2.5 bg-purple-500 text-white text-sm rounded-lg hover:bg-purple-600 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 transition-colors"
+                                    >
+                                        <Video className="w-4 h-4" />
+                                        <span>Video</span>
+                                    </button>
+                                </div>
+
+                                {extractError && (
+                                    <div className="mt-2 text-sm text-red-600 bg-red-50 p-2 rounded-lg">
+                                        {extractError}
+                                    </div>
+                                )}
+
                                 {isAIChecking && (
-                                    <span className="ml-2 text-xs text-blue-600">🔄 检查 AI 可用性...</span>
-                                )}
-                                {!isAIChecking && isAIAvailable && (
-                                    <span className="ml-2 text-xs text-green-600">✓ AI 可用</span>
-                                )}
-                                {!isAIChecking && !isAIAvailable && (
-                                    <span className="ml-2 text-xs text-yellow-600">⚠ AI 不可用（将使用原文）</span>
-                                )}
-                            </label>
-                            <div className="grid grid-cols-3 gap-2">
-                                <button
-                                    onClick={handleExtractSelection}
-                                    disabled={isAnyLoading || isAIChecking}
-                                    className="relative px-3 py-2.5 bg-blue-500 text-white text-sm rounded-lg hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 transition-colors"
-                                >
-                                    {extractingSelection ? (
+                                    <div className="mt-2 text-sm text-blue-600 bg-blue-50 p-2 rounded-lg flex items-center gap-2">
                                         <Loader2 className="w-4 h-4 animate-spin" />
-                                    ) : (
-                                        <FileText className="w-4 h-4" />
-                                    )}
-                                    <span>Selection</span>
-                                </button>
+                                        正在检查 Chrome AI 可用性...
+                                    </div>
+                                )}
 
-                                <button
-                                    onClick={handleExtractWebpage}
-                                    disabled={isAnyLoading || isAIChecking}
-                                    className="px-3 py-2.5 bg-green-500 text-white text-sm rounded-lg hover:bg-green-600 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 transition-colors"
-                                >
-                                    {extractingWebpage ? (
+                                {(extractingSelection || extractingWebpage || isAIProcessing) && !isAIChecking && (
+                                    <div className="mt-2 text-sm text-blue-600 bg-blue-50 p-2 rounded-lg flex items-center gap-2">
                                         <Loader2 className="w-4 h-4 animate-spin" />
-                                    ) : (
-                                        <Globe className="w-4 h-4" />
-                                    )}
-                                    <span>Webpage</span>
-                                </button>
-
-                                <button
-                                    onClick={handleExtractVideo}
-                                    disabled={isAnyLoading || isAIChecking}
-                                    className="px-3 py-2.5 bg-purple-500 text-white text-sm rounded-lg hover:bg-purple-600 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 transition-colors"
-                                >
-                                    <Video className="w-4 h-4" />
-                                    <span>Video</span>
-                                </button>
+                                        正在使用 Chrome AI 智能提取和总结内容...
+                                    </div>
+                                )}
                             </div>
+                        )}
 
-                            {extractError && (
-                                <div className="mt-2 text-sm text-red-600 bg-red-50 p-2 rounded-lg">
-                                    {extractError}
-                                </div>
-                            )}
-
-                            {isAIChecking && (
-                                <div className="mt-2 text-sm text-blue-600 bg-blue-50 p-2 rounded-lg flex items-center gap-2">
-                                    <Loader2 className="w-4 h-4 animate-spin" />
-                                    正在检查 Chrome AI 可用性...
-                                </div>
-                            )}
-
-                            {(extractingSelection || extractingWebpage || isAIProcessing) && !isAIChecking && (
-                                <div className="mt-2 text-sm text-blue-600 bg-blue-50 p-2 rounded-lg flex items-center gap-2">
-                                    <Loader2 className="w-4 h-4 animate-spin" />
-                                    正在使用 Chrome AI 智能提取和总结内容...
-                                </div>
-                            )}
+                        <div>
+                            <label className="block text-sm font-medium mb-1 text-gray-700">标题</label>
+                            <input
+                                type="text"
+                                value={formData.title}
+                                onChange={(e) => setFormData({...formData, title: e.target.value})}
+                                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                                placeholder="输入卡片标题..."
+                            />
                         </div>
-                    )}
 
-                    <div>
-                        <label className="block text-sm font-medium mb-1 text-gray-700">标题</label>
-                        <input
-                            type="text"
-                            value={formData.title}
-                            onChange={(e) => setFormData({...formData, title: e.target.value})}
-                            className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
-                            placeholder="输入卡片标题..."
-                        />
+                        <div>
+                            <label className="block text-sm font-medium mb-1 text-gray-700">内容</label>
+                            <textarea
+                                value={formData.content}
+                                onChange={(e) => setFormData({...formData, content: e.target.value})}
+                                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                                rows={8}
+                                placeholder="详细内容..."
+                            />
+                        </div>
+
+                        <div>
+                            <label className="block text-sm font-medium mb-1 text-gray-700">URL</label>
+                            <input
+                                type="url"
+                                value={formData.url}
+                                onChange={(e) => setFormData({...formData, url: e.target.value})}
+                                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                                placeholder="https://..."
+                            />
+                        </div>
+
+                        <div className="relative" style={{ zIndex: 50 }}>
+                            <label className="block text-sm font-medium mb-1 text-gray-700">分类</label>
+                            <CategorySelector
+                                value={formData.category}
+                                onChange={(category) => setFormData({ ...formData, category })}
+                                dropDirection="up"
+                            />
+                        </div>
                     </div>
 
-                    <div>
-                        <label className="block text-sm font-medium mb-1 text-gray-700">内容</label>
-                        <textarea
-                            value={formData.content}
-                            onChange={(e) => setFormData({...formData, content: e.target.value})}
-                            className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
-                            rows={8}
-                            placeholder="详细内容..."
-                        />
+                    <div className="p-4 border-t flex justify-end gap-2 flex-shrink-0">
+                        <button
+                            onClick={handleClose}
+                            className="px-4 py-2 border border-gray-300 rounded-lg text-sm hover:bg-gray-50 transition-colors"
+                        >
+                            取消
+                        </button>
+                        <button
+                            onClick={handleSave}
+                            className="px-4 py-2 bg-emerald-500 text-white rounded-lg text-sm flex items-center gap-1 hover:bg-emerald-600 transition-colors"
+                        >
+                            <Save className="w-4 h-4" />
+                            {isEditing ? '保存更改' : '保存'}
+                        </button>
                     </div>
-
-                    <div>
-                        <label className="block text-sm font-medium mb-1 text-gray-700">URL</label>
-                        <input
-                            type="url"
-                            value={formData.url}
-                            onChange={(e) => setFormData({...formData, url: e.target.value})}
-                            className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
-                            placeholder="https://..."
-                        />
-                    </div>
-
-                    <div className="relative" style={{ zIndex: 50 }}>
-                        <label className="block text-sm font-medium mb-1 text-gray-700">分类</label>
-                        <CategorySelector
-                            value={formData.category}
-                            onChange={(category) => setFormData({ ...formData, category })}
-                            dropDirection="up"
-                        />
-                    </div>
-                </div>
-
-                <div className="p-4 border-t flex justify-end gap-2 flex-shrink-0">
-                    <button
-                        onClick={handleClose}
-                        className="px-4 py-2 border border-gray-300 rounded-lg text-sm hover:bg-gray-50 transition-colors"
-                    >
-                        取消
-                    </button>
-                    <button
-                        onClick={handleSave}
-                        className="px-4 py-2 bg-emerald-500 text-white rounded-lg text-sm flex items-center gap-1 hover:bg-emerald-600 transition-colors"
-                    >
-                        <Save className="w-4 h-4" />
-                        {isEditing ? '保存更改' : '保存'}
-                    </button>
                 </div>
             </div>
-        </div>
+
+            {/* 关闭确认对话框 */}
+            <ConfirmDialog
+                isOpen={showCloseConfirm}
+                title="Interrupt AI Processing"
+                message="AI is currently generating content. Closing now will stop the process. Do you want to continue?"
+                confirmText="Confirm"
+                cancelText="Cancel"
+                onConfirm={handleConfirmClose}
+                onCancel={handleCancelClose}
+            />
+        </>
     );
 };

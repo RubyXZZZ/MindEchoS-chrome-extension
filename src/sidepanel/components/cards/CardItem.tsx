@@ -1,9 +1,11 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Clock, Link, Trash2, Edit2, ChevronDown, ChevronUp } from 'lucide-react';
 import { KnowledgeCard } from '../../types/card.types';
 import { useStore } from '../../store';
 import { formatTime } from '../../utils/formatters';
 import { MarkdownRenderer } from '../cards/MarkdownRenderer';
+import { ConfirmDialog } from '../modals/ConfirmDialog';
+
 
 interface CardItemProps {
     card: KnowledgeCard;
@@ -25,12 +27,16 @@ export const CardItem: React.FC<CardItemProps> = ({
                                                       isOverlapping = false
                                                   }) => {
     const { deleteCard, setEditingCard, setShowAddModal } = useStore();
+    const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
     const handleDelete = (e: React.MouseEvent) => {
         e.stopPropagation();
-        if (window.confirm('确定要删除这张卡片吗？')) {
-            deleteCard(card.id);
-        }
+        setShowDeleteConfirm(true);
+    };
+
+    const handleConfirmDelete = () => {
+        deleteCard(card.id);
+        setShowDeleteConfirm(false);
     };
 
     const handleEdit = (e: React.MouseEvent) => {
@@ -50,13 +56,13 @@ export const CardItem: React.FC<CardItemProps> = ({
             className={`
                 ${card.color} 
                 rounded-xl shadow-lg hover:shadow-xl transition-all border border-white/50 
-                ${isExpanded ? 'shadow-2xl ring-2 ring-emerald-500/50 h-[300px]' : 'h-[180px]'} 
+                ${isExpanded ? 'shadow-2xl ring-2 ring-emerald-500/50 h-[400px]' : 'h-[180px]'} 
                 ${isOverlapping && !isManageMode ? 'cursor-pointer' : ''}
-                backdrop-blur-sm bg-opacity-90 flex flex-col
+                backdrop-blur-sm bg-opacity-90
             `}
             onClick={handleCardClick}
         >
-            <div className="p-4 flex-grow flex flex-col overflow-hidden">
+            <div className={`p-4 h-full flex flex-col ${isExpanded ? '' : 'overflow-hidden'}`}>
                 {/* Header */}
                 <div className="flex items-start justify-between mb-2 flex-shrink-0">
                     <div className="flex items-start flex-1">
@@ -83,29 +89,24 @@ export const CardItem: React.FC<CardItemProps> = ({
                     </span>
                 </div>
 
-                {/* Content Area: Switches between preview and full view */}
-                <div className="flex-grow overflow-hidden">
-                    {isExpanded ? (
-                        // Expanded view: Full, scrollable content with Markdown rendering
-                        <div className="mt-3 pt-3 border-t border-gray-200/50 h-full overflow-y-auto pr-2">
-                            <MarkdownRenderer
-                                content={card.content}
-                                className="text-xs"
-                            />
-                        </div>
-                    ) : (
-                        // Collapsed view: Truncated preview with Markdown rendering
-                        <div className="line-clamp-3 text-xs">
-                            <MarkdownRenderer
-                                content={card.content}
-                                className="text-xs"
-                            />
-                        </div>
-                    )}
-                </div>
+                {/* Content Area */}
+                {isExpanded ? (
+                    // 展开状态：突破 padding，让滚动条贴近右边界
+                    <div className="flex-1 min-h-0 pt-2 border-t border-gray-200/50 pb-3 mb-2 -mr-3 pr-3 overflow-y-auto custom-scrollbar">
+                        <MarkdownRenderer
+                            content={card.content}
+                            className="text-xs"
+                        />
+                    </div>
+                ) : (
+                    // 折叠状态：3行预览
+                    <p className="text-xs text-gray-700 line-clamp-3 mb-2">
+                        {card.content}
+                    </p>
+                )}
 
                 {/* Footer */}
-                <div className="flex items-center justify-between text-[10px] text-gray-600 mt-3 flex-shrink-0">
+                <div className="flex items-center justify-between text-[10px] text-gray-600 flex-shrink-0">
                     <div className="flex items-center gap-2">
                         <span className="flex items-center gap-0.5">
                             <Clock className="w-3 h-3" />
@@ -160,6 +161,17 @@ export const CardItem: React.FC<CardItemProps> = ({
                     )}
                 </div>
             </div>
+
+            {/* 删除确认对话框 */}
+            <ConfirmDialog
+                isOpen={showDeleteConfirm}
+                title="Delete Card"
+                message={`Delete this card? This action cannot be undone.`}
+                confirmText="Delete"
+                cancelText="Cancel"
+                onConfirm={handleConfirmDelete}
+                onCancel={() => setShowDeleteConfirm(false)}
+            />
         </div>
     );
 };
