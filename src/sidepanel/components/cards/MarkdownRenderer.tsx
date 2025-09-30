@@ -20,7 +20,7 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({ content, cla
                 elements.push(
                     <ul key={`list-${listKey++}`} className="list-disc list-inside space-y-1 my-2">
                         {listItems.map((item, idx) => (
-                            <li key={idx} className="text-gray-700">
+                            <li key={idx}>
                                 {cleanText(item)}
                             </li>
                         ))}
@@ -49,7 +49,7 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({ content, cla
             }
 
             // 列表项 (* - •)
-            const listMatch = trimmedLine.match(/^[\*\-•]\s+(.+)$/);
+            const listMatch = trimmedLine.match(/^[*\-•]\s+(.+)$/);
             if (listMatch) {
                 listItems.push(listMatch[1]);
                 return;
@@ -58,7 +58,7 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({ content, cla
             // 普通段落
             flushList();
             elements.push(
-                <p key={index} className="text-gray-700 mb-2">
+                <p key={index} className="mb-2">
                     {cleanText(trimmedLine)}
                 </p>
             );

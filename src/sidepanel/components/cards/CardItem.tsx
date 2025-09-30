@@ -6,7 +6,6 @@ import { formatTime } from '../../utils/formatters';
 import { MarkdownRenderer } from '../cards/MarkdownRenderer';
 import { ConfirmDialog } from '../modals/ConfirmDialog';
 
-
 interface CardItemProps {
     card: KnowledgeCard;
     isManageMode: boolean;
@@ -62,7 +61,8 @@ export const CardItem: React.FC<CardItemProps> = ({
             `}
             onClick={handleCardClick}
         >
-            <div className={`p-4 h-full flex flex-col ${isExpanded ? '' : 'overflow-hidden'}`}>
+            {/* 父容器 padding：左16 右8 上12 下2（收缩时更紧凑） */}
+            <div className="pl-4 pr-2 pt-3 pb-1 h-full flex flex-col">
                 {/* Header */}
                 <div className="flex items-start justify-between mb-2 flex-shrink-0">
                     <div className="flex items-start flex-1">
@@ -80,7 +80,7 @@ export const CardItem: React.FC<CardItemProps> = ({
                                 />
                             </label>
                         )}
-                        <h3 className="text-sm font-semibold text-gray-900 flex-1">
+                        <h3 className="text-base text-gray-900 flex-1 leading-tight">
                             {card.title}
                         </h3>
                     </div>
@@ -91,22 +91,25 @@ export const CardItem: React.FC<CardItemProps> = ({
 
                 {/* Content Area */}
                 {isExpanded ? (
-                    // 展开状态：突破 padding，让滚动条贴近右边界
-                    <div className="flex-1 min-h-0 pt-2 border-t border-gray-200/50 pb-3 mb-2 -mr-3 pr-3 overflow-y-auto custom-scrollbar">
+                    // 展开状态：14px，紧凑行距
+                    <div
+                        className="flex-1 min-h-0 pt-2 border-t border-gray-200/50 overflow-y-auto pb-3 mb-2 custom-scrollbar -mr-1"
+                        style={{ scrollbarGutter: 'stable' }}
+                    >
                         <MarkdownRenderer
                             content={card.content}
-                            className="text-xs"
+                            className="text-sm leading-snug"
                         />
                     </div>
                 ) : (
-                    // 折叠状态：3行预览
-                    <p className="text-xs text-gray-700 line-clamp-3 mb-2">
+                    // 折叠状态：12px，紧凑型，增大底部间距
+                    <p className="text-xs text-gray-700 line-clamp-3 leading-tight pr-2 mb-3">
                         {card.content}
                     </p>
                 )}
 
-                {/* Footer */}
-                <div className="flex items-center justify-between text-[10px] text-gray-600 flex-shrink-0">
+                {/* Footer - 使用 mt-auto 固定在底部 */}
+                <div className="flex items-center justify-between text-[10px] text-gray-600 flex-shrink-0 mt-auto">
                     <div className="flex items-center gap-2">
                         <span className="flex items-center gap-0.5">
                             <Clock className="w-3 h-3" />
