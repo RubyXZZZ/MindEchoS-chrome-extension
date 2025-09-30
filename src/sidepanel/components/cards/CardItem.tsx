@@ -61,7 +61,7 @@ export const CardItem: React.FC<CardItemProps> = ({
             `}
             onClick={handleCardClick}
         >
-            {/* 父容器 padding：左16 右8 上12 下2（收缩时更紧凑） */}
+            {/* 父容器 padding：左16 右8 上12 下4（收缩时更紧凑） */}
             <div className="pl-4 pr-2 pt-3 pb-1 h-full flex flex-col">
                 {/* Header */}
                 <div className="flex items-start justify-between mb-2 flex-shrink-0">

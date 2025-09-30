@@ -31,13 +31,13 @@ export const AddCardModal: React.FC = () => {
         url: ''
     });
 
-    // 分别跟踪每个按钮的加载状态
     const [extractingSelection, setExtractingSelection] = useState(false);
     const [extractingWebpage, setExtractingWebpage] = useState(false);
     const [extractError, setExtractError] = useState<string>('');
     const [showCloseConfirm, setShowCloseConfirm] = useState(false);
+    const [showSaveConfirm, setShowSaveConfirm] = useState(false);
+    const [forceHideLoading, setForceHideLoading] = useState(false);  // 强制隐藏 loading
 
-    // 使用 AI Hook
     const {
         summarizeTextStreaming,
         summarizeWebpageStreaming,
@@ -46,32 +46,11 @@ export const AddCardModal: React.FC = () => {
         isChecking: isAIChecking
     } = useAISummarizer();
 
-    // 跟踪是否已处理过右键/快捷键的自动 AI 总结
     const hasProcessedAutoAI = useRef(false);
-
-    // 用于累积流式输出的临时状态
     const streamingTitle = useRef('');
     const streamingContent = useRef('');
-
-    // 用于中断流式处理
     const abortController = useRef<AbortController | null>(null);
 
-    // 重置函数
-    const resetModal = () => {
-        setFormData({ title: '', content: '', category: DEFAULT_CATEGORY, url: '' });
-        setExtractError('');
-        setExtractingSelection(false);
-        setExtractingWebpage(false);
-        hasProcessedAutoAI.current = false;
-
-        // 中断正在进行的流式处理
-        if (abortController.current) {
-            abortController.current.abort();
-            abortController.current = null;
-        }
-    };
-
-    // 处理关闭 Modal
     const handleClose = () => {
         const isProcessing = extractingSelection || extractingWebpage || isAIProcessing;
 
@@ -82,18 +61,18 @@ export const AddCardModal: React.FC = () => {
         }
     };
 
-    // 确认关闭并中断 AI
     const handleConfirmClose = () => {
         setShowCloseConfirm(false);
+        hasProcessedAutoAI.current = false;
+        setInitialSelection(null);
+        chrome.storage.session.remove('pendingSelection');
         setShowAddModal(false);
     };
 
-    // 取消关闭
     const handleCancelClose = () => {
         setShowCloseConfirm(false);
     };
 
-    // 处理右键/快捷键的自动 AI 总结（流式）
     useEffect(() => {
         const processAutoAI = async () => {
             if (!showAddModal || !initialSelection || !initialSelection.needsAISummarize) {
@@ -104,7 +83,6 @@ export const AddCardModal: React.FC = () => {
                 return;
             }
 
-            // 等待 AI 可用性检查完成
             if (isAIChecking) {
                 console.log('[AddCardModal] Waiting for AI availability check...');
                 return;
@@ -120,7 +98,8 @@ export const AddCardModal: React.FC = () => {
                 initialCategory = selectedCategory;
             }
 
-            // 重置流式累积
+            abortController.current = new AbortController();
+            const signal = abortController.current.signal;
             streamingTitle.current = '';
             streamingContent.current = '';
 
@@ -128,8 +107,8 @@ export const AddCardModal: React.FC = () => {
                 await summarizeTextStreaming(
                     initialSelection.text,
                     initialSelection.url,
-                    // 标题流式回调 - 接收累积的完整文本
                     (titleChunk) => {
+                        if (signal.aborted) return;
                         console.log('[AddCardModal] Title update:', titleChunk.substring(0, 50));
                         streamingTitle.current = titleChunk;
                         setFormData(prev => ({
@@ -139,55 +118,80 @@ export const AddCardModal: React.FC = () => {
                             url: initialSelection.url || ''
                         }));
                     },
-                    // 内容流式回调 - 接收累积的完整文本
                     (contentChunk) => {
+                        if (signal.aborted) return;
                         console.log('[AddCardModal] Content update, length:', contentChunk.length);
                         streamingContent.current = contentChunk;
                         setFormData(prev => ({
                             ...prev,
                             content: contentChunk
                         }));
-                    }
+                    },
+                    signal
                 );
 
-                // 流式结束后，一次性更新表单
-                console.log('[AddCardModal] Streaming completed, updating form');
-                setFormData({
-                    title: streamingTitle.current || initialSelection.text.substring(0, 50) + '...',
-                    content: streamingContent.current || initialSelection.text,
-                    category: initialCategory,
-                    url: initialSelection.url || ''
-                });
-            } catch (error) {
-                console.error('[AddCardModal] Auto AI streaming error:', error);
-                // 出错时使用原文
-                setFormData({
-                    title: initialSelection.text.substring(0, 50) + '...',
-                    content: initialSelection.text,
-                    category: initialCategory,
-                    url: initialSelection.url || ''
-                });
+                if (!signal.aborted) {
+                    console.log('[AddCardModal] Streaming completed, updating form');
+                    setFormData({
+                        title: streamingTitle.current || initialSelection.text.substring(0, 50) + '...',
+                        content: streamingContent.current || initialSelection.text,
+                        category: initialCategory,
+                        url: initialSelection.url || ''
+                    });
+                }
+            } catch (error: any) {
+                if (error.name === 'AbortError' || signal.aborted) {
+                    console.log('[AddCardModal] Auto AI streaming aborted by user');
+                } else {
+                    console.error('[AddCardModal] Auto AI streaming error:', error);
+                    setFormData({
+                        title: initialSelection.text.substring(0, 50) + '...',
+                        content: initialSelection.text,
+                        category: initialCategory,
+                        url: initialSelection.url || ''
+                    });
+                }
             } finally {
                 setExtractingSelection(false);
+                abortController.current = null;
             }
         };
 
         processAutoAI();
     }, [showAddModal, initialSelection, summarizeTextStreaming, selectedCategory, isAIChecking, isAIAvailable]);
 
-    // 处理表单初始化（编辑模式或空白卡片）
     useEffect(() => {
         if (!showAddModal) {
-            // Modal 关闭时清理
+            // Modal 关闭时立即强制隐藏所有 loading
+            setForceHideLoading(true);
+            setExtractingSelection(false);
+            setExtractingWebpage(false);
+            setExtractError('');
+            setShowCloseConfirm(false);
+            setShowSaveConfirm(false);
+
+            // 延迟清理其他状态
             setTimeout(() => {
                 if (editingCard) setEditingCard(null);
                 if (initialSelection) setInitialSelection(null);
-                resetModal();
+                hasProcessedAutoAI.current = false;
+                streamingTitle.current = '';
+                streamingContent.current = '';
+
+                // 中断可能还在运行的 AI
+                if (abortController.current) {
+                    abortController.current.abort();
+                    abortController.current = null;
+                }
+
+                chrome.storage.session.remove('pendingSelection');
             }, 0);
             return;
         }
 
-        // 如果是编辑模式
+        // Modal 打开时重置强制隐藏标志
+        setForceHideLoading(false);
+
         if (editingCardData) {
             setFormData({
                 title: editingCardData.title,
@@ -198,7 +202,6 @@ export const AddCardModal: React.FC = () => {
             return;
         }
 
-        // 如果是新建，且没有自动 AI 处理的需求（空白卡片）
         if (!initialSelection || !initialSelection.needsAISummarize) {
             let initialCategory = DEFAULT_CATEGORY;
             if (selectedCategory !== ALL_CARDS_FILTER) {
@@ -211,10 +214,8 @@ export const AddCardModal: React.FC = () => {
                 url: ''
             });
         }
-        // 如果 needsAISummarize 为 true，表单会由上面的 useEffect 处理
     }, [showAddModal, editingCardData, editingCard, setEditingCard, initialSelection, setInitialSelection, selectedCategory]);
 
-    // 处理 Selection 按钮点击（手动提取 - 流式）
     const handleExtractSelection = async () => {
         setExtractingSelection(true);
         setExtractError('');
@@ -230,15 +231,16 @@ export const AddCardModal: React.FC = () => {
             if (response && response.success) {
                 console.log('[AddCardModal] Calling streaming AI summarizer for selection...');
 
-                // 重置流式累积
+                abortController.current = new AbortController();
+                const signal = abortController.current.signal;
                 streamingTitle.current = '';
                 streamingContent.current = '';
 
                 await summarizeTextStreaming(
                     response.data.text,
                     response.data.url,
-                    // 标题流式回调 - 接收累积的完整文本
                     (titleChunk) => {
+                        if (signal.aborted) return;
                         streamingTitle.current = titleChunk;
                         setFormData(prev => ({
                             ...prev,
@@ -246,36 +248,42 @@ export const AddCardModal: React.FC = () => {
                             url: response.data.url || prev.url
                         }));
                     },
-                    // 内容流式回调 - 接收累积的完整文本
                     (contentChunk) => {
+                        if (signal.aborted) return;
                         streamingContent.current = contentChunk;
                         setFormData(prev => ({
                             ...prev,
                             content: contentChunk
                         }));
-                    }
+                    },
+                    signal
                 );
 
-                // 流式结束后，一次性更新表单
-                console.log('[AddCardModal] Selection streaming completed');
-                setFormData(prev => ({
-                    ...prev,
-                    title: streamingTitle.current || response.data.text.substring(0, 50) + '...',
-                    content: streamingContent.current || response.data.text,
-                    url: response.data.url || prev.url
-                }));
+                if (!signal.aborted) {
+                    console.log('[AddCardModal] Selection streaming completed');
+                    setFormData(prev => ({
+                        ...prev,
+                        title: streamingTitle.current || response.data.text.substring(0, 50) + '...',
+                        content: streamingContent.current || response.data.text,
+                        url: response.data.url || prev.url
+                    }));
+                }
             } else {
                 setExtractError(response?.error || '无法获取选中内容');
             }
-        } catch (error) {
-            console.error('[AddCardModal] Failed to extract selection:', error);
-            setExtractError('提取失败，请重试');
+        } catch (error: any) {
+            if (error.name === 'AbortError' || abortController.current?.signal.aborted) {
+                console.log('[AddCardModal] Selection streaming aborted by user');
+            } else {
+                console.error('[AddCardModal] Failed to extract selection:', error);
+                setExtractError('提取失败，请重试');
+            }
         } finally {
             setExtractingSelection(false);
+            abortController.current = null;
         }
     };
 
-    // 处理 Webpage 按钮点击（提取网页内容 - 流式）
     const handleExtractWebpage = async () => {
         setExtractingWebpage(true);
         setExtractError('');
@@ -291,14 +299,15 @@ export const AddCardModal: React.FC = () => {
             if (response && response.success) {
                 console.log('[AddCardModal] Calling streaming AI webpage summarizer...');
 
-                // 重置流式累积
+                abortController.current = new AbortController();
+                const signal = abortController.current.signal;
                 streamingTitle.current = '';
                 streamingContent.current = '';
 
                 await summarizeWebpageStreaming(
                     response.data,
-                    // 标题流式回调 - 接收累积的完整文本
                     (titleChunk) => {
+                        if (signal.aborted) return;
                         streamingTitle.current = titleChunk;
                         setFormData(prev => ({
                             ...prev,
@@ -306,41 +315,58 @@ export const AddCardModal: React.FC = () => {
                             url: response.data.url || prev.url
                         }));
                     },
-                    // 内容流式回调 - 接收累积的完整文本
                     (contentChunk) => {
+                        if (signal.aborted) return;
                         streamingContent.current = contentChunk;
                         setFormData(prev => ({
                             ...prev,
                             content: contentChunk
                         }));
-                    }
+                    },
+                    signal
                 );
 
-                // 流式结束后，一次性更新表单
-                console.log('[AddCardModal] Webpage streaming completed');
-                setFormData(prev => ({
-                    ...prev,
-                    title: streamingTitle.current || response.data.title,
-                    content: streamingContent.current || response.data.content,
-                    url: response.data.url || prev.url
-                }));
+                if (!signal.aborted) {
+                    console.log('[AddCardModal] Webpage streaming completed');
+                    setFormData(prev => ({
+                        ...prev,
+                        title: streamingTitle.current || response.data.title,
+                        content: streamingContent.current || response.data.content,
+                        url: response.data.url || prev.url
+                    }));
+                }
             } else {
                 setExtractError(response?.error || '无法提取网页内容');
             }
-        } catch (error) {
-            console.error('[AddCardModal] Failed to extract webpage:', error);
-            setExtractError('提取失败，请重试');
+        } catch (error: any) {
+            if (error.name === 'AbortError' || abortController.current?.signal.aborted) {
+                console.log('[AddCardModal] Webpage streaming aborted by user');
+            } else {
+                console.error('[AddCardModal] Failed to extract webpage:', error);
+                setExtractError('提取失败，请重试');
+            }
         } finally {
             setExtractingWebpage(false);
+            abortController.current = null;
         }
     };
 
-    // 处理 Video 按钮点击（占位）
     const handleExtractVideo = () => {
         setExtractError('视频提取功能开发中，敬请期待');
     };
 
     const handleSave = async () => {
+        const isProcessing = extractingSelection || extractingWebpage || isAIProcessing;
+
+        if (isProcessing) {
+            setShowSaveConfirm(true);
+            return;
+        }
+
+        performSave();
+    };
+
+    const performSave = async () => {
         if (!formData.title.trim() && !isEditing) {
             formData.title = formData.content.substring(0, 30) + (formData.content.length > 30 ? '...' : '');
         }
@@ -365,8 +391,23 @@ export const AddCardModal: React.FC = () => {
         setShowAddModal(false);
     };
 
-    // 任何按钮正在处理中
-    const isAnyLoading = extractingSelection || extractingWebpage || isAIProcessing;
+    const handleConfirmSave = () => {
+        setShowSaveConfirm(false);
+
+        if (abortController.current) {
+            console.log('[AddCardModal] Aborting AI processing before save');
+            abortController.current.abort();
+            abortController.current = null;
+        }
+
+        hasProcessedAutoAI.current = false;
+        setInitialSelection(null);
+        chrome.storage.session.remove('pendingSelection');
+
+        performSave();
+    };
+
+    const isAnyLoading = !forceHideLoading && (extractingSelection || extractingWebpage || isAIProcessing);
 
     if (!showAddModal) return null;
 
@@ -520,6 +561,8 @@ export const AddCardModal: React.FC = () => {
                 </div>
             </div>
 
+
+
             {/* 关闭确认对话框 */}
             <ConfirmDialog
                 isOpen={showCloseConfirm}
@@ -530,6 +573,18 @@ export const AddCardModal: React.FC = () => {
                 onConfirm={handleConfirmClose}
                 onCancel={handleCancelClose}
             />
+
+            {/* 保存确认对话框 */}
+            <ConfirmDialog
+                isOpen={showSaveConfirm}
+                title="Save Incomplete Content"
+                message="AI is still generating content. Saving now may produce incomplete content. Are you sure you want to save?"
+                confirmText="Save"
+                cancelText="Wait"
+                onConfirm={handleConfirmSave}
+                onCancel={() => setShowSaveConfirm(false)}
+            />
         </>
     );
 };
+

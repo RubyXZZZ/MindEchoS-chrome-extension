@@ -16,12 +16,14 @@ interface UseAISummarizerReturn {
         text: string,
         url: string,
         onTitleChunk: (chunk: string) => void,
-        onContentChunk: (chunk: string) => void
+        onContentChunk: (chunk: string) => void,
+        signal?: AbortSignal
     ) => Promise<SummarizeResult>;
     summarizeWebpageStreaming: (
         pageData: { title: string; content: string; url: string },
         onTitleChunk: (chunk: string) => void,
-        onContentChunk: (chunk: string) => void
+        onContentChunk: (chunk: string) => void,
+        signal?: AbortSignal
     ) => Promise<SummarizeResult>;
     isProcessing: boolean;
     isAvailable: boolean;
@@ -80,10 +82,12 @@ export function useAISummarizer(): UseAISummarizerReturn {
         text: string,
         url: string,
         onTitleChunk: (chunk: string) => void,
-        onContentChunk: (chunk: string) => void
+        onContentChunk: (chunk: string) => void,
+        signal?: AbortSignal
     ): Promise<SummarizeResult> => {
         console.log('[AI Hook] summarizeTextStreaming called');
         console.log('[AI Hook] - Text length:', text.length);
+        console.log('[AI Hook] - URL:', url);
         console.log('[AI Hook] - isAvailable:', isAvailable);
 
         if (!isAvailable) {
@@ -107,7 +111,8 @@ export function useAISummarizer(): UseAISummarizerReturn {
                 text,
                 url,
                 onTitleChunk,
-                onContentChunk
+                onContentChunk,
+                signal
             );
             console.log('[AI Hook] Streaming completed:', result);
             return result;
@@ -130,7 +135,8 @@ export function useAISummarizer(): UseAISummarizerReturn {
     const summarizeWebpageStreaming = useCallback(async (
         pageData: { title: string; content: string; url: string },
         onTitleChunk: (chunk: string) => void,
-        onContentChunk: (chunk: string) => void
+        onContentChunk: (chunk: string) => void,
+        signal?: AbortSignal
     ): Promise<SummarizeResult> => {
         console.log('[AI Hook] summarizeWebpageStreaming called');
         console.log('[AI Hook] - Page title:', pageData.title);
@@ -156,7 +162,8 @@ export function useAISummarizer(): UseAISummarizerReturn {
             const result = await summarizer.summarizeWebpageStreaming(
                 pageData,
                 onTitleChunk,
-                onContentChunk
+                onContentChunk,
+                signal
             );
             console.log('[AI Hook] Webpage streaming completed:', result);
             return result;

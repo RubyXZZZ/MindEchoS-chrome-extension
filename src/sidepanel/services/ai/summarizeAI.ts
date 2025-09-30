@@ -91,7 +91,8 @@ export class SummarizeAI {
         text: string,
         _url: string,
         onTitleChunk: (chunk: string) => void,
-        onContentChunk: (chunk: string) => void
+        onContentChunk: (chunk: string) => void,
+        signal?: AbortSignal
     ): Promise<SummarizeResult> {
         if (!text || text.length < 10) {
             return {
@@ -113,9 +114,24 @@ export class SummarizeAI {
         if (titleSummarizer) {
             try {
                 console.log('[SummarizeAI] Streaming title generation...');
+
+                // 开始流式前检查 abort
+                if (signal?.aborted) {
+                    console.log('[SummarizeAI] Title generation aborted before streaming');
+                    titleSummarizer.destroy();
+                    return {
+                        success: false,
+                        error: 'Aborted by user'
+                    };
+                }
+
                 const stream = titleSummarizer.summarizeStreaming(text);
 
                 for await (const chunk of stream) {
+                    if (signal?.aborted) {
+                        console.log('[SummarizeAI] Title generation aborted during streaming');
+                        break;
+                    }
                     title += chunk;
                     onTitleChunk(title);
                 }
@@ -145,10 +161,31 @@ export class SummarizeAI {
 
         if (contentSummarizer) {
             try {
+                // 开始流式前检查 abort
+                if (signal?.aborted) {
+                    console.log('[SummarizeAI] Content generation aborted before streaming');
+                    contentSummarizer.destroy();
+                    return {
+                        success: false,
+                        error: 'Aborted by user',
+                        title: title
+                    };
+                }
+
                 let content = '';
                 const stream = contentSummarizer.summarizeStreaming(text);
 
                 for await (const chunk of stream) {
+                    if (signal?.aborted) {
+                        console.log('[SummarizeAI] Content generation aborted during streaming');
+                        console.log('[SummarizeAI] Partial content saved, length:', content.length);
+                        contentSummarizer.destroy();
+                        return {
+                            success: true,
+                            title: title,
+                            content: content  // 返回已生成的部分内容
+                        };
+                    }
                     content += chunk;
                     onContentChunk(content);
                 }
@@ -189,7 +226,8 @@ export class SummarizeAI {
             url: string;
         },
         onTitleChunk: (chunk: string) => void,
-        onContentChunk: (chunk: string) => void
+        onContentChunk: (chunk: string) => void,
+        signal?: AbortSignal
     ): Promise<SummarizeResult> {
         if (!pageContent.content || pageContent.content.length < 10) {
             return {
@@ -211,9 +249,24 @@ export class SummarizeAI {
         if (titleSummarizer) {
             try {
                 console.log('[SummarizeAI] Streaming webpage title generation...');
+
+                // 开始流式前检查 abort
+                if (signal?.aborted) {
+                    console.log('[SummarizeAI] Webpage title generation aborted before streaming');
+                    titleSummarizer.destroy();
+                    return {
+                        success: false,
+                        error: 'Aborted by user'
+                    };
+                }
+
                 const stream = titleSummarizer.summarizeStreaming(pageContent.content);
 
                 for await (const chunk of stream) {
+                    if (signal?.aborted) {
+                        console.log('[SummarizeAI] Webpage title generation aborted during streaming');
+                        break;
+                    }
                     betterTitle += chunk;
                     onTitleChunk(betterTitle);
                 }
@@ -244,12 +297,33 @@ export class SummarizeAI {
 
         if (contentSummarizer) {
             try {
+                // 开始流式前检查 abort
+                if (signal?.aborted) {
+                    console.log('[SummarizeAI] Webpage content generation aborted before streaming');
+                    contentSummarizer.destroy();
+                    return {
+                        success: false,
+                        error: 'Aborted by user',
+                        title: betterTitle
+                    };
+                }
+
                 let summary = '';
                 const stream = contentSummarizer.summarizeStreaming(pageContent.content, {
                     context: `From webpage: ${pageContent.url}`
                 });
 
                 for await (const chunk of stream) {
+                    if (signal?.aborted) {
+                        console.log('[SummarizeAI] Webpage content generation aborted during streaming');
+                        console.log('[SummarizeAI] Partial webpage content saved, length:', summary.length);
+                        contentSummarizer.destroy();
+                        return {
+                            success: true,
+                            title: betterTitle,
+                            content: summary  // 返回已生成的部分内容
+                        };
+                    }
                     summary += chunk;
                     onContentChunk(summary);
                 }
