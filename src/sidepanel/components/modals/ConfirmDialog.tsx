@@ -1,6 +1,6 @@
 // components/common/ConfirmDialog.tsx
 import React from 'react';
-import { AlertTriangle } from 'lucide-react';
+import { AlertTriangle, X } from 'lucide-react';
 
 interface ConfirmDialogProps {
     isOpen: boolean;
@@ -38,11 +38,22 @@ export const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
                 className="bg-white rounded-xl shadow-2xl max-w-sm w-full mx-4 overflow-hidden"
                 onClick={(e) => e.stopPropagation()}  // 确保对话框内点击也不冒泡
             >
+
+                {/* 👇 添加：右上角关闭按钮 */}
+                <div className="relative">
+                    <button
+                        onClick={onCancel}
+                        className="absolute top-3 right-3 text-gray-400 hover:text-gray-600 transition-colors z-10"
+                    >
+                        <X className="w-5 h-5" />
+                    </button>
+                </div>
+
                 <div className="p-4 flex items-start gap-3">
                     <div className="flex-shrink-0 w-10 h-10 rounded-full bg-yellow-100 flex items-center justify-center">
                         <AlertTriangle className="w-5 h-5 text-yellow-600" />
                     </div>
-                    <div className="flex-1">
+                    <div className="flex-1 pr-6">
                         <h3 className="text-base font-semibold text-gray-900 mb-1">
                             {title}
                         </h3>

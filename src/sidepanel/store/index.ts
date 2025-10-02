@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { KnowledgeCard } from '../types/card.types';
-import { ChatMessage } from '../types/chat.types';
+import { ChatMessage, ChatArchive } from '../types/chat.types';
 import {
     ALL_CARDS_FILTER,
     DEFAULT_CATEGORY,
@@ -9,7 +9,6 @@ import {
     CARD_COLORS
 } from '../utils/constants';
 
-// Type for the data captured from the content script
 interface SelectionPayload {
     text: string;
     url: string;
@@ -32,9 +31,10 @@ interface AppState {
     messages: ChatMessage[];
     selectedCardsForChat: string[];
     isTyping: boolean;
+    chatArchives: ChatArchive[];
 
     // UI
-    currentView: 'cards' | 'chat';
+    currentView: 'cards' | 'chat' | 'settings';
     showAddModal: boolean;
     showDeleteCategoryModal: boolean;
 
@@ -63,8 +63,17 @@ interface AppState {
     setSelectedCardsForChat: (ids: string[]) => void;
     setIsTyping: (typing: boolean) => void;
 
+    // Chat Persistence Actions
+    loadCurrentChat: () => Promise<void>;
+    saveCurrentChat: () => Promise<void>;
+    archiveCurrentChat: () => Promise<void>;
+    loadArchive: (archiveId: string) => void;
+    deleteArchive: (archiveId: string) => Promise<void>;
+    exportArchive: (archiveId: string) => void;
+    loadChatArchives: () => Promise<void>;
+
     // UI Actions
-    setCurrentView: (view: 'cards' | 'chat') => void;
+    setCurrentView: (view: 'cards' | 'chat' | 'settings') => void;
     setShowAddModal: (show: boolean) => void;
 }
 
@@ -83,6 +92,7 @@ export const useStore = create<AppState>((set, get) => ({
     messages: [],
     selectedCardsForChat: [],
     isTyping: false,
+    chatArchives: [],
 
     // === UI State ===
     currentView: 'cards',
@@ -331,6 +341,151 @@ export const useStore = create<AppState>((set, get) => ({
 
     setSelectedCardsForChat: (ids) => set({ selectedCardsForChat: ids }),
     setIsTyping: (typing) => set({ isTyping: typing }),
+
+    // === Chat Persistence Actions ===
+
+    loadCurrentChat: async () => {
+        try {
+            const result = await chrome.storage.local.get([STORAGE_KEYS.CURRENT_CHAT]);
+
+            if (result[STORAGE_KEYS.CURRENT_CHAT]) {
+                const savedChat = result[STORAGE_KEYS.CURRENT_CHAT];
+                set({
+                    messages: savedChat.messages || [],
+                    selectedCardsForChat: savedChat.selectedCards || []
+                });
+                console.log('[Store] Loaded current chat with', savedChat.messages?.length || 0, 'messages');
+            }
+        } catch (error) {
+            console.error('[Store] Error loading current chat:', error);
+        }
+    },
+
+    saveCurrentChat: async () => {
+        try {
+            const state = get();
+            const currentChat = {
+                messages: state.messages,
+                selectedCards: state.selectedCardsForChat,
+                lastUpdated: Date.now()
+            };
+
+            await chrome.storage.local.set({
+                [STORAGE_KEYS.CURRENT_CHAT]: currentChat
+            });
+            console.log('[Store] Current chat saved');
+        } catch (error) {
+            console.error('[Store] Error saving current chat:', error);
+        }
+    },
+
+    archiveCurrentChat: async () => {
+        try {
+            const state = get();
+
+            if (state.messages.length === 0) {
+                console.log('[Store] No messages to archive');
+                return;
+            }
+
+            // 生成归档标题（从第一条用户消息）
+            const firstUserMsg = state.messages.find(m => m.role === 'user');
+            const title = firstUserMsg
+                ? firstUserMsg.content.substring(0, 50) + (firstUserMsg.content.length > 50 ? '...' : '')
+                : 'Untitled Chat';
+
+            const archive: ChatArchive = {
+                id: `archive_${Date.now()}`,
+                title,
+                messages: state.messages,
+                selectedCards: state.selectedCardsForChat,
+                createdAt: state.messages[0]?.timestamp || Date.now(),
+                archivedAt: Date.now()
+            };
+
+            // 获取现有归档
+            const result = await chrome.storage.local.get([STORAGE_KEYS.CHAT_ARCHIVES]);
+            const archives = result[STORAGE_KEYS.CHAT_ARCHIVES] || [];
+
+            // 添加新归档
+            const newArchives = [archive, ...archives];
+            await chrome.storage.local.set({
+                [STORAGE_KEYS.CHAT_ARCHIVES]: newArchives
+            });
+
+            // 更新状态
+            set({
+                chatArchives: newArchives,
+                messages: [],
+                selectedCardsForChat: []
+            });
+
+            // 清空当前对话的持久化
+            await chrome.storage.local.remove(STORAGE_KEYS.CURRENT_CHAT);
+
+            console.log('[Store] Chat archived:', archive.id);
+        } catch (error) {
+            console.error('[Store] Error archiving chat:', error);
+        }
+    },
+
+    loadArchive: (archiveId: string) => {
+        const state = get();
+        const archive = state.chatArchives.find(a => a.id === archiveId);
+
+        if (archive) {
+            set({
+                messages: archive.messages,
+                selectedCardsForChat: archive.selectedCards,
+                currentView: 'chat'
+            });
+            console.log('[Store] Loaded archive:', archiveId);
+        }
+    },
+
+    deleteArchive: async (archiveId: string) => {
+        try {
+            const state = get();
+            const newArchives = state.chatArchives.filter(a => a.id !== archiveId);
+
+            set({ chatArchives: newArchives });
+            await chrome.storage.local.set({
+                [STORAGE_KEYS.CHAT_ARCHIVES]: newArchives
+            });
+
+            console.log('[Store] Archive deleted:', archiveId);
+        } catch (error) {
+            console.error('[Store] Error deleting archive:', error);
+        }
+    },
+
+    exportArchive: (archiveId: string) => {
+        const state = get();
+        const archive = state.chatArchives.find(a => a.id === archiveId);
+
+        if (archive) {
+            const dataStr = JSON.stringify(archive, null, 2);
+            const dataUri = 'data:application/json;charset=utf-8,' + encodeURIComponent(dataStr);
+            const linkElement = document.createElement('a');
+            linkElement.setAttribute('href', dataUri);
+            linkElement.setAttribute('download', `chat_${archive.id}.json`);
+            linkElement.click();
+            console.log('[Store] Archive exported:', archiveId);
+        }
+    },
+
+    loadChatArchives: async () => {
+        try {
+            const result = await chrome.storage.local.get([STORAGE_KEYS.CHAT_ARCHIVES]);
+            const archives = result[STORAGE_KEYS.CHAT_ARCHIVES] || [];
+
+            set({ chatArchives: archives });
+            console.log('[Store] Loaded', archives.length, 'chat archives');
+        } catch (error) {
+            console.error('[Store] Error loading archives:', error);
+            set({ chatArchives: [] });
+        }
+    },
 
     // === UI Actions ===
 

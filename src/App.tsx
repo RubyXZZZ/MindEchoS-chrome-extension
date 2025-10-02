@@ -5,23 +5,21 @@ import { AddCardModal } from './sidepanel/components/modals/AddCardModal';
 import { DeleteCategoryModal } from './sidepanel/components/modals/DeleteCategoryModal';
 import { CardsView } from './sidepanel/views/CardsView';
 import { ChatView } from './sidepanel/views/ChatView';
+import { SettingsView } from './sidepanel/views/SettingsView';  // 已有导入
 import type { ManageState } from './sidepanel/types/manage.types';
 
 function App() {
     const { currentView, cards, initialize, loadStore, checkForPendingSelection } = useStore();
     const [isLoading, setIsLoading] = useState(true);
 
-    // 初始化管理状态
     const [manageState, setManageState] = useState<ManageState>({
         view: 'cards',
         isManageMode: false,
         selectedCards: []
     });
 
-    // 处理卡片选择（仅在 cards 视图中使用）
     const handleCardSelect = (cardId: string) => {
         setManageState(prev => {
-            // 类型守卫，确保只在 cards 视图中处理选择
             if (prev.view === 'cards') {
                 return {
                     ...prev,
@@ -34,7 +32,6 @@ function App() {
         });
     };
 
-    // 监听视图切换，同步更新管理状态
     useEffect(() => {
         if (currentView === 'cards') {
             setManageState({
@@ -50,15 +47,11 @@ function App() {
         }
     }, [currentView]);
 
-    // 初始化应用
     useEffect(() => {
         const initializeApp = async () => {
             try {
-                // 1. 设置监听器
                 initialize();
-                // 2. 加载持久化的卡片和分类
                 await loadStore();
-                // 3. 检查监听器准备好之前的事件
                 await checkForPendingSelection();
             } catch (error) {
                 console.error('Failed to initialize app:', error);
@@ -89,7 +82,8 @@ function App() {
             />
 
             <div className="flex-1 overflow-hidden relative">
-                {currentView === 'cards' ? (
+                {/* 改用独立的条件渲染 */}
+                {currentView === 'cards' && (
                     <CardsView
                         manageModeState={manageState.view === 'cards' ? {
                             isManageMode: manageState.isManageMode,
@@ -100,18 +94,16 @@ function App() {
                         }}
                         onCardSelect={handleCardSelect}
                     />
-                ) : (
-                    <ChatView
-                        // isManageMode={manageState.isManageMode}
-                    />
                 )}
+
+                {currentView === 'chat' && <ChatView />}
+
+                {currentView === 'settings' && <SettingsView />}  {/* 新增 */}
             </div>
 
-            {/* 全局模态框 */}
             <AddCardModal />
             <DeleteCategoryModal />
 
-            {/* 开发环境调试信息 */}
             {process.env.NODE_ENV === 'development' && (
                 <div className="fixed bottom-2 left-2 bg-black/80 text-white text-xs px-2 py-1 rounded-lg z-50">
                     Cards: {cards.length} | View: {currentView} |

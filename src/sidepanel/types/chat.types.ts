@@ -13,13 +13,13 @@ export interface ChatMessage {
     triggeredBy?: string;  // 触发来源（如 Insight, Compare, Explore, Write）
 }
 
-export interface ChatSession {
-    id: string;
-    cardIds: string[];  // 关联的卡片 ID
-    messages: ChatMessage[];
-    mode: FunctionMode;
-    createdAt: number;
-}
+// export interface ChatSession {
+//     id: string;
+//     cardIds: string[];  // 关联的卡片 ID
+//     messages: ChatMessage[];
+//     mode: FunctionMode;
+//     createdAt: number;
+// }
 
 export interface ChatArchive {
     id: string;

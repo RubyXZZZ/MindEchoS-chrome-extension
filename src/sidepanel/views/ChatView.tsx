@@ -6,6 +6,8 @@ import { formatTime } from '../utils/formatters';
 import { usePromptAPI } from '../hooks/usePromptAPI';
 import { ChatMarkdownRenderer } from '../components/chat/ChatMarkdownRenderer';
 import { WRITING_TASKS, WritingTaskType } from '../types/writing.types';
+import { ConfirmDialog } from '../components/modals/ConfirmDialog';
+import { STORAGE_KEYS } from '../utils/constants';
 
 const MessageBubble = React.memo<{
     msg: ChatMessage;
@@ -103,7 +105,10 @@ export const ChatView: React.FC = () => {
         clearMessages,
         selectedCardsForChat,
         setSelectedCardsForChat,
-        cards
+        cards,
+        loadCurrentChat,
+        saveCurrentChat,
+        archiveCurrentChat
     } = useStore();
 
     const {
@@ -122,6 +127,8 @@ export const ChatView: React.FC = () => {
     const [isInitializing, setIsInitializing] = useState(false);
     const [autoScroll, setAutoScroll] = useState(true);
     const [showWriteMenu, setShowWriteMenu] = useState(false);
+    const [showNewChatDialog, setShowNewChatDialog] = useState(false);
+    const [sessionReady, setSessionReady] = useState(false);
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const messagesContainerRef = useRef<HTMLDivElement>(null);
     const abortController = useRef<AbortController | null>(null);
@@ -129,36 +136,68 @@ export const ChatView: React.FC = () => {
 
     const selectedCards = cards.filter(c => selectedCardsForChat.includes(c.id));
 
+    // 加载上次对话
+    useEffect(() => {
+        loadCurrentChat();
+    }, []);
+
+    // 优化：只在生成完成后保存
+    useEffect(() => {
+        const hasPendingMsg = messages.some(m => m.status === 'pending');
+
+        if (messages.length > 0 && !hasPendingMsg) {
+            saveCurrentChat();
+            console.log('[ChatView] Chat saved after generation complete');
+        }
+    }, [messages, selectedCardsForChat]);
+
+    // Session 初始化
     useEffect(() => {
         const initSession = async () => {
-            if (!isAvailable) return;
+            if (!isAvailable) {
+                setSessionReady(false);
+                return;
+            }
 
             const currentCardsKey = JSON.stringify(selectedCardsForChat.sort());
-            if (lastInitCardsRef.current === currentCardsKey) {
-                console.log('[ChatView] Same cards, reusing session');
+
+            if (lastInitCardsRef.current === currentCardsKey && sessionReady) {
+                console.log('[ChatView] Session already ready, skipping init');
                 return;
             }
 
             setIsInitializing(true);
-            console.log('[ChatView] Cards changed, reinitializing session...');
+            setSessionReady(false);
+            console.log('[ChatView] Initializing session with', selectedCards.length, 'cards...');
 
             try {
                 const success = await initializeSession('chat', selectedCards);
                 if (success) {
                     lastInitCardsRef.current = currentCardsKey;
-                    console.log('[ChatView] ✓ Session ready with', selectedCards.length, 'cards');
+                    setSessionReady(true);
+                    console.log('[ChatView] ✓ Session ready');
+                } else {
+                    setSessionReady(false);
+                    console.error('[ChatView] ✗ Session init failed');
                 }
             } catch (error) {
                 console.error('[ChatView] Init error:', error);
+                setSessionReady(false);
             } finally {
                 setIsInitializing(false);
             }
         };
 
         initSession();
-
-        return () => destroySession();
     }, [isAvailable, selectedCardsForChat]);
+
+    // 只在组件卸载时销毁 session
+    useEffect(() => {
+        return () => {
+            console.log('[ChatView] Unmounting, destroying session');
+            destroySession();
+        };
+    }, []);
 
     useEffect(() => {
         if (autoScroll) {
@@ -193,16 +232,34 @@ export const ChatView: React.FC = () => {
         if (isGenerating) return;
 
         if (messages.length > 0) {
-            const confirm = window.confirm('Start a new conversation? Current messages will be cleared.');
-            if (!confirm) return;
+            setShowNewChatDialog(true);
+        } else {
+            clearMessages();
+            setSelectedCardsForChat([]);
         }
+    }, [isGenerating, messages.length]);
 
+    const handleDeleteAndNew = useCallback(async () => {
+        setShowNewChatDialog(false);
+        destroySession();
+        setSessionReady(false);
+        lastInitCardsRef.current = '';
         clearMessages();
         setSelectedCardsForChat([]);
-    }, [isGenerating, messages.length, clearMessages, setSelectedCardsForChat]);
+        await chrome.storage.local.remove(STORAGE_KEYS.CURRENT_CHAT);
+        console.log('[ChatView] Current chat deleted from storage');
+    }, [clearMessages, setSelectedCardsForChat, destroySession]);
+
+    const handleArchiveAndNew = useCallback(async () => {
+        setShowNewChatDialog(false);
+        destroySession();
+        setSessionReady(false);
+        lastInitCardsRef.current = '';
+        await archiveCurrentChat();
+    }, [archiveCurrentChat, destroySession]);
 
     const handleQuickAction = useCallback(async (action: string) => {
-        if (isGenerating || isInitializing) return;
+        if (isGenerating || isInitializing || !sessionReady) return;
 
         if (action === 'write') {
             setShowWriteMenu(!showWriteMenu);
@@ -273,10 +330,9 @@ export const ChatView: React.FC = () => {
                 const contentToSave = result || finalContent;
                 if (contentToSave) {
                     updateMessage(aiMsgId, { content: contentToSave, status: 'accepted' });
-                    console.log('[ChatView] Quick action completed, content length:', contentToSave.length);
+                    console.log('[ChatView] Quick action completed');
                 } else {
                     updateMessage(aiMsgId, { content: 'Error: No content generated', status: 'rejected' });
-                    console.error('[ChatView] No content generated from quick action');
                 }
             } catch (error: any) {
                 if (error.message !== 'Aborted') {
@@ -288,12 +344,12 @@ export const ChatView: React.FC = () => {
                 setActiveButton(null);
             }
         }
-    }, [isGenerating, isInitializing, selectedCards, showWriteMenu, addMessage, updateMessage, sendMessage]);
+    }, [isGenerating, isInitializing, sessionReady, selectedCards, showWriteMenu, addMessage, updateMessage, sendMessage]);
 
     const handleWriteTask = useCallback(async (taskType: string) => {
         setShowWriteMenu(false);
 
-        if (isGenerating || isInitializing) return;
+        if (isGenerating || isInitializing || !sessionReady) return;
 
         setActiveButton('write');
 
@@ -359,10 +415,10 @@ export const ChatView: React.FC = () => {
             abortController.current = null;
             setActiveButton(null);
         }
-    }, [isGenerating, isInitializing, addMessage, updateMessage, sendMessage]);
+    }, [isGenerating, isInitializing, sessionReady, addMessage, updateMessage, sendMessage]);
 
     const handleSend = useCallback(async () => {
-        if (!inputMessage.trim() || isGenerating || isInitializing) return;
+        if (!inputMessage.trim() || isGenerating || isInitializing || !sessionReady) return;
 
         const userMsg: ChatMessage = {
             id: Date.now().toString(),
@@ -402,10 +458,9 @@ export const ChatView: React.FC = () => {
             const contentToSave = result || finalContent;
             if (contentToSave) {
                 updateMessage(aiMsgId, { content: contentToSave, status: 'accepted' });
-                console.log('[ChatView] Message sent, final content length:', contentToSave.length);
+                console.log('[ChatView] Message sent, final length:', contentToSave.length);
             } else {
                 updateMessage(aiMsgId, { content: 'Error: No content generated', status: 'rejected' });
-                console.error('[ChatView] No content generated');
             }
         } catch (error: any) {
             if (error.message !== 'Aborted') {
@@ -415,7 +470,7 @@ export const ChatView: React.FC = () => {
         } finally {
             abortController.current = null;
         }
-    }, [inputMessage, isGenerating, isInitializing, addMessage, updateMessage, sendMessage]);
+    }, [inputMessage, isGenerating, isInitializing, sessionReady, addMessage, updateMessage, sendMessage]);
 
     const handleStop = useCallback(() => {
         abortController.current?.abort();
@@ -599,7 +654,7 @@ export const ChatView: React.FC = () => {
                     </div>
                 )}
 
-                {messages.length === 0 && (
+                {messages.length === 0 && sessionReady && (
                     <div className="max-w-2xl mx-auto mt-8 mb-8">
                         <div className="bg-gradient-to-br from-emerald-50 to-teal-50 rounded-2xl p-6 border border-emerald-200">
                             <h3 className="text-lg font-semibold text-gray-800 mb-3">
@@ -627,7 +682,7 @@ export const ChatView: React.FC = () => {
                                     </div>
                                     <div>
                                         <span className="font-medium text-gray-800">Insight</span>
-                                        <p className="text-xs text-gray-600 mt-0.5">Deep analysis and structured understanding of concepts</p>
+                                        <p className="text-xs text-gray-600 mt-0.5">Deep analysis and structured understanding</p>
                                     </div>
                                 </div>
 
@@ -648,7 +703,7 @@ export const ChatView: React.FC = () => {
                                     </div>
                                     <div>
                                         <span className="font-medium text-gray-800">Explore</span>
-                                        <p className="text-xs text-gray-600 mt-0.5">Discover connections and find related resources</p>
+                                        <p className="text-xs text-gray-600 mt-0.5">Discover connections and resources</p>
                                     </div>
                                 </div>
 
@@ -658,14 +713,14 @@ export const ChatView: React.FC = () => {
                                     </div>
                                     <div>
                                         <span className="font-medium text-gray-800">Write</span>
-                                        <p className="text-xs text-gray-600 mt-0.5">Generate summaries, outlines, memos, and emails</p>
+                                        <p className="text-xs text-gray-600 mt-0.5">Generate summaries, outlines, memos, emails</p>
                                     </div>
                                 </div>
                             </div>
 
                             <div className="mt-4 pt-4 border-t border-emerald-200/50">
                                 <p className="text-xs text-gray-600">
-                                    💬 <span className="font-medium">Ask anything</span> - Type your question below and I'll help you find answers
+                                    💬 <span className="font-medium">Ask anything</span> - Type your question below
                                 </p>
                             </div>
                         </div>
@@ -739,7 +794,7 @@ export const ChatView: React.FC = () => {
                 <div className="flex gap-2 justify-center">
                     <button
                         onClick={() => handleQuickAction('insight')}
-                        disabled={isGenerating || isInitializing}
+                        disabled={isGenerating || isInitializing || !sessionReady}
                         className={`px-2.5 py-1.5 rounded-lg shadow-lg border transition-all disabled:opacity-60 flex items-center gap-1.5 group ${
                             activeButton === 'insight'
                                 ? 'bg-emerald-500 text-white border-emerald-600 shadow-xl'
@@ -754,7 +809,7 @@ export const ChatView: React.FC = () => {
 
                     <button
                         onClick={() => handleQuickAction('compare')}
-                        disabled={isGenerating || isInitializing}
+                        disabled={isGenerating || isInitializing || !sessionReady}
                         className={`px-2.5 py-1.5 rounded-lg shadow-lg border transition-all disabled:opacity-60 flex items-center gap-1.5 group ${
                             activeButton === 'compare'
                                 ? 'bg-emerald-500 text-white border-emerald-600 shadow-xl'
@@ -769,7 +824,7 @@ export const ChatView: React.FC = () => {
 
                     <button
                         onClick={() => handleQuickAction('explore')}
-                        disabled={isGenerating || isInitializing}
+                        disabled={isGenerating || isInitializing || !sessionReady}
                         className={`px-2.5 py-1.5 rounded-lg shadow-lg border transition-all disabled:opacity-60 flex items-center gap-1.5 group ${
                             activeButton === 'explore'
                                 ? 'bg-emerald-500 text-white border-emerald-600 shadow-xl'
@@ -784,7 +839,7 @@ export const ChatView: React.FC = () => {
 
                     <button
                         onClick={() => handleQuickAction('write')}
-                        disabled={isGenerating || isInitializing}
+                        disabled={isGenerating || isInitializing || !sessionReady}
                         className={`px-2.5 py-1.5 rounded-lg shadow-lg border transition-all disabled:opacity-60 flex items-center gap-1.5 group ${
                             activeButton === 'write' || showWriteMenu
                                 ? 'bg-emerald-500 text-white border-emerald-600 shadow-xl'
@@ -821,7 +876,7 @@ export const ChatView: React.FC = () => {
                                 }
                             }}
                             placeholder="Message AI..."
-                            disabled={isGenerating || isInitializing}
+                            disabled={isGenerating || isInitializing || !sessionReady}
                             className="w-full px-3 py-2.5 pr-12 bg-gray-50 border border-gray-300 rounded-xl text-sm resize-none focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:bg-white transition-all"
                             rows={3}
                         />
@@ -836,7 +891,7 @@ export const ChatView: React.FC = () => {
                         ) : (
                             <button
                                 onClick={handleSend}
-                                disabled={!inputMessage.trim() || isInitializing}
+                                disabled={!inputMessage.trim() || isInitializing || !sessionReady}
                                 className="absolute bottom-2 right-2 w-8 h-8 bg-emerald-500 text-white rounded-lg hover:bg-emerald-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
                             >
                                 <Send className="w-3.5 h-3.5" />
@@ -845,6 +900,16 @@ export const ChatView: React.FC = () => {
                     </div>
                 </div>
             </div>
+
+            <ConfirmDialog
+                isOpen={showNewChatDialog}
+                title="Start New Conversation"
+                message="Starting a new conversation will delete the current one. Would you like to DELETE? (Note: Archiving will consume storage space)"
+                confirmText="Delete & Start New"
+                cancelText="Archive & Start New"
+                onConfirm={handleDeleteAndNew}
+                onCancel={handleArchiveAndNew}
+            />
         </div>
     );
 };

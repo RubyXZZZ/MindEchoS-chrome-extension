@@ -17,9 +17,27 @@ export const NavigationBar: React.FC<NavigationBarProps> = ({
     const { currentView, setCurrentView } = useStore();
     const { isManageMode } = manageState;
 
+    const handleLogoClick = () => {
+        console.log('[NavigationBar] Logo clicked, switching to settings');
+        setCurrentView('settings');
+
+        // 退出管理模式
+        if (currentView === 'cards') {
+            onManageStateChange({
+                view: 'cards',
+                isManageMode: false,
+                selectedCards: []
+            });
+        } else if (currentView === 'chat') {
+            onManageStateChange({
+                view: 'chat',
+                isManageMode: false
+            });
+        }
+    };
+
     const handleManageClick = () => {
         if (isManageMode) {
-            // 退出管理模式
             if (currentView === 'cards') {
                 onManageStateChange({
                     view: 'cards',
@@ -33,7 +51,6 @@ export const NavigationBar: React.FC<NavigationBarProps> = ({
                 });
             }
         } else {
-            // 进入管理模式
             if (currentView === 'cards') {
                 onManageStateChange({
                     view: 'cards',
@@ -51,7 +68,6 @@ export const NavigationBar: React.FC<NavigationBarProps> = ({
 
     const handleViewChange = (view: 'cards' | 'chat') => {
         setCurrentView(view);
-        // 切换视图时重置管理状态
         if (view === 'cards') {
             onManageStateChange({
                 view: 'cards',
@@ -67,7 +83,6 @@ export const NavigationBar: React.FC<NavigationBarProps> = ({
     };
 
     const handleActionComplete = () => {
-        // 操作完成后退出管理模式
         if (currentView === 'cards') {
             onManageStateChange({
                 view: 'cards',
@@ -86,13 +101,19 @@ export const NavigationBar: React.FC<NavigationBarProps> = ({
         <div className="bg-white/95 backdrop-blur-sm border-b border-gray-200/50">
             <div className="px-4 py-3">
                 <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3">
+                    {/* Logo - 可点击进入 Settings */}
+                    <div
+                        className="flex items-center gap-3 cursor-pointer hover:opacity-75 transition-opacity"
+                        onClick={handleLogoClick}
+                        title="Settings"
+                    >
                         <div className="w-8 h-8 rounded-lg bg-emerald-500 flex items-center justify-center">
                             <Layers className="w-4 h-4 text-white" />
                         </div>
                         <h1 className="text-base font-semibold text-gray-900">知识卡片</h1>
                     </div>
 
+                    {/* View Switcher */}
                     <div className="flex items-center bg-gray-100 rounded-lg p-0.5">
                         <button
                             onClick={() => handleViewChange('cards')}
@@ -116,6 +137,7 @@ export const NavigationBar: React.FC<NavigationBarProps> = ({
                         </button>
                     </div>
 
+                    {/* Manage Button */}
                     <button
                         onClick={handleManageClick}
                         className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-all flex items-center gap-1 ${
@@ -132,7 +154,7 @@ export const NavigationBar: React.FC<NavigationBarProps> = ({
                     </button>
                 </div>
 
-                {/* 根据当前视图显示对应的管理工具栏 */}
+                {/* Manage Toolbars */}
                 {isManageMode && currentView === 'cards' && manageState.view === 'cards' && (
                     <CardsManageToolbar
                         selectedCards={manageState.selectedCards}

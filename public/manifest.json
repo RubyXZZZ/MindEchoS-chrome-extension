@@ -22,6 +22,9 @@
   "action": {
     "default_title": "Open Knowledge Cards"
   },
+
+  "options_page": "index.html",
+
   "side_panel": {
     "default_path": "index.html"
   },
