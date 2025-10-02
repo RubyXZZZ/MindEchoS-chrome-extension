@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { KnowledgeCard } from '../types/card.types';
-import { ChatMessage, ChatMode } from '../types/chat.types';
+import { ChatMessage } from '../types/chat.types';
 import {
     ALL_CARDS_FILTER,
     DEFAULT_CATEGORY,
@@ -14,10 +14,11 @@ interface SelectionPayload {
     text: string;
     url: string;
     title?: string;
-    needsAISummarize?: boolean;  // 标记是否需要 AI 处理
+    needsAISummarize?: boolean;
 }
 
 interface AppState {
+    // Cards
     cards: KnowledgeCard[];
     searchQuery: string;
     selectedCategory: string;
@@ -27,15 +28,17 @@ interface AppState {
     userCategories: readonly string[];
     categoryToDelete: string | null;
 
+    // Chat
     messages: ChatMessage[];
-    chatMode: ChatMode;
     selectedCardsForChat: string[];
     isTyping: boolean;
 
+    // UI
     currentView: 'cards' | 'chat';
     showAddModal: boolean;
     showDeleteCategoryModal: boolean;
 
+    // Card Actions
     initialize: () => void;
     checkForPendingSelection: () => Promise<void>;
     loadStore: () => Promise<void>;
@@ -53,16 +56,20 @@ interface AppState {
     deleteCategoryAndCards: () => Promise<void>;
     moveCardsToOtherAndDeleteCategory: () => Promise<void>;
 
+    // Chat Actions
     addMessage: (message: ChatMessage) => void;
-    setChatMode: (mode: ChatMode) => void;
+    updateMessage: (id: string, updates: Partial<ChatMessage>) => void;
+    clearMessages: () => void;
     setSelectedCardsForChat: (ids: string[]) => void;
     setIsTyping: (typing: boolean) => void;
 
+    // UI Actions
     setCurrentView: (view: 'cards' | 'chat') => void;
     setShowAddModal: (show: boolean) => void;
 }
 
 export const useStore = create<AppState>((set, get) => ({
+    // === Card State ===
     cards: [],
     searchQuery: '',
     selectedCategory: ALL_CARDS_FILTER,
@@ -72,16 +79,17 @@ export const useStore = create<AppState>((set, get) => ({
     userCategories: [],
     categoryToDelete: null,
 
+    // === Chat State ===
     messages: [],
-    chatMode: 'free',
     selectedCardsForChat: [],
     isTyping: false,
 
+    // === UI State ===
     currentView: 'cards',
     showAddModal: false,
     showDeleteCategoryModal: false,
 
-    // --- Actions ---
+    // === Card Actions ===
 
     initialize: () => {
         chrome.storage.onChanged.addListener(async (changes, areaName) => {
@@ -90,7 +98,6 @@ export const useStore = create<AppState>((set, get) => ({
                 if (newValue) {
                     console.log('[Store] Detected pendingSelection:', newValue);
 
-                    // 不再在这里做 AI 处理，直接设置 initialSelection 并打开 Modal
                     set({
                         initialSelection: {
                             text: newValue.text,
@@ -100,7 +107,6 @@ export const useStore = create<AppState>((set, get) => ({
                         showAddModal: true
                     });
 
-                    // 清除 session storage
                     chrome.storage.session.remove('pendingSelection');
                 }
             }
@@ -114,7 +120,6 @@ export const useStore = create<AppState>((set, get) => ({
                 const pendingData = result.pendingSelection;
                 console.log('[Store] Found pending selection on init:', pendingData);
 
-                // 不再在这里做 AI 处理，直接设置 initialSelection 并打开 Modal
                 set({
                     initialSelection: {
                         text: pendingData.text,
@@ -310,10 +315,24 @@ export const useStore = create<AppState>((set, get) => ({
     setEditingCard: (id) => set({ editingCard: id }),
     setInitialSelection: (payload) => set({ initialSelection: payload }),
 
-    addMessage: (message) => set((state) => ({ messages: [...state.messages, message] })),
-    setChatMode: (mode) => set({ chatMode: mode }),
+    // === Chat Actions ===
+
+    addMessage: (message) => set((state) => ({
+        messages: [...state.messages, message]
+    })),
+
+    updateMessage: (id, updates) => set((state) => ({
+        messages: state.messages.map(msg =>
+            msg.id === id ? { ...msg, ...updates } : msg
+        )
+    })),
+
+    clearMessages: () => set({ messages: [] }),
+
     setSelectedCardsForChat: (ids) => set({ selectedCardsForChat: ids }),
     setIsTyping: (typing) => set({ isTyping: typing }),
+
+    // === UI Actions ===
 
     setCurrentView: (view) => set({ currentView: view }),
     setShowAddModal: (show) => set({ showAddModal: show }),

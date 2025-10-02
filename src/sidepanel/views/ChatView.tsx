@@ -1,308 +1,847 @@
-
-
-import React, { useState, useRef, useEffect } from 'react';
-import { Sparkles, ArrowUp, MessageSquare, Layers, Brain, Paperclip } from 'lucide-react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
+import { Send, Square, Lightbulb, GitCompare, Compass, PenTool, Check, X, Save, Layers } from 'lucide-react';
 import { useStore } from '../store';
 import { ChatMessage } from '../types/chat.types';
 import { formatTime } from '../utils/formatters';
-import { PromptsAI } from '../services/ai/promptsAI';
+import { usePromptAPI } from '../hooks/usePromptAPI';
+import { ChatMarkdownRenderer } from '../components/chat/ChatMarkdownRenderer';
+import { WRITING_TASKS, WritingTaskType } from '../types/writing.types';
+
+const MessageBubble = React.memo<{
+    msg: ChatMessage;
+    cards: Array<{ id: string; title: string; content: string }>;
+    onAccept: (id: string) => void;
+    onReject: (id: string) => void;
+    onSave: (id: string) => void;
+}>(({ msg, cards, onAccept, onReject, onSave }) => (
+    <div className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+        <div className={msg.role === 'user' ? 'max-w-[85%]' : 'max-w-[95%]'}>
+            <div className={`px-4 py-2.5 text-sm overflow-hidden ${
+                msg.role === 'user'
+                    ? 'bg-emerald-100 text-gray-800 rounded-2xl rounded-br-sm shadow-sm'
+                    : 'bg-white/90 text-gray-800 rounded-2xl rounded-bl-sm shadow-sm border border-gray-100'
+            }`}>
+                {msg.role === 'user' ? (
+                    <p className="whitespace-pre-wrap break-words">{msg.content}</p>
+                ) : (
+                    <>
+                        {msg.content ? (
+                            <ChatMarkdownRenderer
+                                content={msg.content}
+                                className="text-sm"
+                                cards={cards}
+                            />
+                        ) : (
+                            <div className="flex gap-1.5">
+                                <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
+                                <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
+                                <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+                            </div>
+                        )}
+
+                        {msg.content && msg.status !== 'rejected' && (
+                            <div className="flex gap-1.5 mt-2.5 pt-2.5 border-t border-gray-100">
+                                {msg.status === 'accepted' ? (
+                                    <span className="text-xs text-green-600 flex items-center gap-1">
+                                        <Check className="w-3 h-3" />
+                                        Accepted
+                                    </span>
+                                ) : (
+                                    <button
+                                        onClick={() => onAccept(msg.id)}
+                                        className="px-2 py-1 bg-green-50 text-green-700 text-xs rounded hover:bg-green-100 flex items-center gap-1"
+                                    >
+                                        <Check className="w-3 h-3" />
+                                        Accept
+                                    </button>
+                                )}
+
+                                <button
+                                    onClick={() => onReject(msg.id)}
+                                    className="px-2 py-1 bg-red-50 text-red-700 text-xs rounded hover:bg-red-100 flex items-center gap-1"
+                                >
+                                    <X className="w-3 h-3" />
+                                    Improve
+                                </button>
+
+                                <button
+                                    onClick={() => onSave(msg.id)}
+                                    className="px-2 py-1 bg-purple-50 text-purple-700 text-xs rounded hover:bg-purple-100 flex items-center gap-1"
+                                >
+                                    <Save className="w-3 h-3" />
+                                    Save
+                                </button>
+                            </div>
+                        )}
+
+                        {msg.status === 'rejected' && msg.rejectionReason && (
+                            <div className="mt-2 text-xs text-amber-700 bg-amber-50 px-2 py-1 rounded">
+                                Improving: {msg.rejectionReason}
+                            </div>
+                        )}
+                    </>
+                )}
+            </div>
+
+            <div className={`mt-1 px-1 ${msg.role === 'user' ? 'text-right' : ''}`}>
+                <span className="text-[10px] text-gray-400">{formatTime(msg.timestamp)}</span>
+                {msg.role === 'assistant' && msg.triggeredBy && (
+                    <span className="text-[10px] text-emerald-600 ml-2">
+                        • Generated by {msg.triggeredBy}
+                    </span>
+                )}
+            </div>
+        </div>
+    </div>
+));
 
 export const ChatView: React.FC = () => {
     const {
         messages,
         addMessage,
-        chatMode,
-        setChatMode,
+        updateMessage,
+        clearMessages,
         selectedCardsForChat,
         setSelectedCardsForChat,
-        isTyping,
-        setIsTyping,
         cards
     } = useStore();
 
+    const {
+        isAvailable,
+        isChecking,
+        isGenerating,
+        initializeSession,
+        sendMessage,
+        generateImprovement,
+        destroySession
+    } = usePromptAPI();
+
     const [inputMessage, setInputMessage] = useState('');
-    const [showCardSelection, setShowCardSelection] = useState(false);
+    const [showCardSelector, setShowCardSelector] = useState(false);
+    const [activeButton, setActiveButton] = useState<string | null>(null);
+    const [isInitializing, setIsInitializing] = useState(false);
+    const [autoScroll, setAutoScroll] = useState(true);
+    const [showWriteMenu, setShowWriteMenu] = useState(false);
     const messagesEndRef = useRef<HTMLDivElement>(null);
+    const messagesContainerRef = useRef<HTMLDivElement>(null);
+    const abortController = useRef<AbortController | null>(null);
+    const lastInitCardsRef = useRef<string>('');
 
-    const handleSend = async () => {
-        if (!inputMessage.trim()) return;
+    const selectedCards = cards.filter(c => selectedCardsForChat.includes(c.id));
 
-        const newMsg: ChatMessage = {
+    useEffect(() => {
+        const initSession = async () => {
+            if (!isAvailable) return;
+
+            const currentCardsKey = JSON.stringify(selectedCardsForChat.sort());
+            if (lastInitCardsRef.current === currentCardsKey) {
+                console.log('[ChatView] Same cards, reusing session');
+                return;
+            }
+
+            setIsInitializing(true);
+            console.log('[ChatView] Cards changed, reinitializing session...');
+
+            try {
+                const success = await initializeSession('chat', selectedCards);
+                if (success) {
+                    lastInitCardsRef.current = currentCardsKey;
+                    console.log('[ChatView] ✓ Session ready with', selectedCards.length, 'cards');
+                }
+            } catch (error) {
+                console.error('[ChatView] Init error:', error);
+            } finally {
+                setIsInitializing(false);
+            }
+        };
+
+        initSession();
+
+        return () => destroySession();
+    }, [isAvailable, selectedCardsForChat]);
+
+    useEffect(() => {
+        if (autoScroll) {
+            messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+        }
+    }, [messages, autoScroll]);
+
+    useEffect(() => {
+        const handleClickOutside = (e: MouseEvent) => {
+            const target = e.target as HTMLElement;
+            if (!target.closest('.write-menu-container')) {
+                setShowWriteMenu(false);
+            }
+        };
+
+        if (showWriteMenu) {
+            document.addEventListener('mousedown', handleClickOutside);
+        }
+
+        return () => {
+            document.removeEventListener('mousedown', handleClickOutside);
+        };
+    }, [showWriteMenu]);
+
+    const handleScroll = useCallback((e: React.UIEvent<HTMLDivElement>) => {
+        const element = e.currentTarget;
+        const isAtBottom = element.scrollHeight - element.scrollTop - element.clientHeight < 50;
+        setAutoScroll(isAtBottom);
+    }, []);
+
+    const handleNewConversation = useCallback(() => {
+        if (isGenerating) return;
+
+        if (messages.length > 0) {
+            const confirm = window.confirm('Start a new conversation? Current messages will be cleared.');
+            if (!confirm) return;
+        }
+
+        clearMessages();
+        setSelectedCardsForChat([]);
+    }, [isGenerating, messages.length, clearMessages, setSelectedCardsForChat]);
+
+    const handleQuickAction = useCallback(async (action: string) => {
+        if (isGenerating || isInitializing) return;
+
+        if (action === 'write') {
+            setShowWriteMenu(!showWriteMenu);
+            return;
+        }
+
+        setActiveButton(action);
+
+        let prompt = '';
+        const hasCards = selectedCards.length > 0;
+
+        switch(action) {
+            case 'insight':
+                prompt = hasCards
+                    ? `Please provide deep insights and analysis on the selected cards.`
+                    : `I'd like deep insights on a topic. What would you like to explore?`;
+                break;
+
+            case 'compare':
+                prompt = hasCards && selectedCards.length >= 2
+                    ? `Please compare and contrast the concepts in the selected cards.`
+                    : `I need help comparing options. What would you like to compare?`;
+                break;
+
+            case 'explore':
+                prompt = hasCards
+                    ? `Based on the selected cards, help me explore further with related concepts and resources.`
+                    : `I want to explore a topic comprehensively. What's your area of interest?`;
+                break;
+        }
+
+        if (prompt) {
+            const userMsg: ChatMessage = {
+                id: Date.now().toString(),
+                role: 'user',
+                content: prompt,
+                timestamp: Date.now(),
+                mode: 'chat'
+            };
+            addMessage(userMsg);
+
+            const aiMsgId = (Date.now() + 1).toString();
+            addMessage({
+                id: aiMsgId,
+                role: 'assistant',
+                content: '',
+                timestamp: Date.now(),
+                mode: 'chat',
+                status: 'pending',
+                triggeredBy: action.charAt(0).toUpperCase() + action.slice(1)
+            } as ChatMessage);
+
+            abortController.current = new AbortController();
+
+            try {
+                let finalContent = '';
+                const result = await sendMessage(
+                    prompt,
+                    (text) => {
+                        if (text) {
+                            finalContent = text;
+                            updateMessage(aiMsgId, { content: text });
+                        }
+                    },
+                    abortController.current.signal
+                );
+
+                const contentToSave = result || finalContent;
+                if (contentToSave) {
+                    updateMessage(aiMsgId, { content: contentToSave, status: 'accepted' });
+                    console.log('[ChatView] Quick action completed, content length:', contentToSave.length);
+                } else {
+                    updateMessage(aiMsgId, { content: 'Error: No content generated', status: 'rejected' });
+                    console.error('[ChatView] No content generated from quick action');
+                }
+            } catch (error: any) {
+                if (error.message !== 'Aborted') {
+                    updateMessage(aiMsgId, { content: 'Error: Failed to generate response', status: 'rejected' });
+                    console.error('[ChatView] Quick action error:', error);
+                }
+            } finally {
+                abortController.current = null;
+                setActiveButton(null);
+            }
+        }
+    }, [isGenerating, isInitializing, selectedCards, showWriteMenu, addMessage, updateMessage, sendMessage]);
+
+    const handleWriteTask = useCallback(async (taskType: string) => {
+        setShowWriteMenu(false);
+
+        if (isGenerating || isInitializing) return;
+
+        setActiveButton('write');
+
+        const taskLabels: Record<string, string> = {
+            summary: 'Summary',
+            outline: 'Outline',
+            memo: 'Memo',
+            email: 'Email'
+        };
+
+        const taskConfig = WRITING_TASKS[taskType as WritingTaskType];
+        if (!taskConfig) return;
+
+        const userMsg: ChatMessage = {
+            id: Date.now().toString(),
+            role: 'user',
+            content: `Generate ${taskLabels[taskType] || 'content'}`,
+            timestamp: Date.now(),
+            mode: 'chat'
+        };
+        addMessage(userMsg);
+
+        const aiMsgId = (Date.now() + 1).toString();
+        addMessage({
+            id: aiMsgId,
+            role: 'assistant',
+            content: '',
+            timestamp: Date.now(),
+            mode: 'chat',
+            status: 'pending',
+            triggeredBy: `Write: ${taskLabels[taskType]}`
+        } as ChatMessage);
+
+        abortController.current = new AbortController();
+
+        try {
+            let finalContent = '';
+
+            const result = await sendMessage(
+                taskConfig.prompt,
+                (text) => {
+                    if (text) {
+                        finalContent = text;
+                        updateMessage(aiMsgId, { content: text });
+                    }
+                },
+                abortController.current.signal
+            );
+
+            const contentToSave = result || finalContent;
+            if (contentToSave) {
+                updateMessage(aiMsgId, { content: contentToSave, status: 'accepted' });
+                console.log('[ChatView] Write task completed:', taskType);
+            } else {
+                updateMessage(aiMsgId, { content: 'Error: No content generated', status: 'rejected' });
+            }
+        } catch (error: any) {
+            if (error.message !== 'Aborted') {
+                updateMessage(aiMsgId, { content: 'Error: Failed to generate response', status: 'rejected' });
+                console.error('[ChatView] Write task error:', error);
+            }
+        } finally {
+            abortController.current = null;
+            setActiveButton(null);
+        }
+    }, [isGenerating, isInitializing, addMessage, updateMessage, sendMessage]);
+
+    const handleSend = useCallback(async () => {
+        if (!inputMessage.trim() || isGenerating || isInitializing) return;
+
+        const userMsg: ChatMessage = {
             id: Date.now().toString(),
             role: 'user',
             content: inputMessage,
             timestamp: Date.now(),
-            status: 'sent'
+            mode: 'chat'
         };
-
-        addMessage(newMsg);
+        addMessage(userMsg);
         setInputMessage('');
-        setIsTyping(true);
 
-        // Get AI response
+        const aiMsgId = (Date.now() + 1).toString();
+        addMessage({
+            id: aiMsgId,
+            role: 'assistant',
+            content: '',
+            timestamp: Date.now(),
+            mode: 'chat',
+            status: 'pending'
+        });
+
+        abortController.current = new AbortController();
+
         try {
-            // Get selected cards data for context
-            const selectedCards = chatMode === 'cards'
-                ? cards.filter(card => selectedCardsForChat.includes(card.id))
-                : undefined;
-
-            // Use PromptsAI service instead of ChromeAIService
-            const response = await PromptsAI.generateResponse(
+            let finalContent = '';
+            const result = await sendMessage(
                 inputMessage,
-                {
-                    mode: chatMode,
-                    cards: selectedCards,
-                    history: messages.slice(-10)
-                }
+                (text) => {
+                    if (text && text.length > 0) {
+                        finalContent = text;
+                        updateMessage(aiMsgId, { content: text });
+                    }
+                },
+                abortController.current.signal
             );
 
-            setIsTyping(false);
-            addMessage({
-                id: (Date.now() + 1).toString(),
-                role: 'assistant',
-                content: response,
-                timestamp: Date.now(),
-                status: 'sent'
-            });
-        } catch (error) {
-            setIsTyping(false);
-            console.error('AI response error:', error);
-            addMessage({
-                id: (Date.now() + 1).toString(),
-                role: 'assistant',
-                content: '抱歉，获取回复时出现错误。请稍后再试。',
-                timestamp: Date.now(),
-                status: 'error'
-            });
+            const contentToSave = result || finalContent;
+            if (contentToSave) {
+                updateMessage(aiMsgId, { content: contentToSave, status: 'accepted' });
+                console.log('[ChatView] Message sent, final content length:', contentToSave.length);
+            } else {
+                updateMessage(aiMsgId, { content: 'Error: No content generated', status: 'rejected' });
+                console.error('[ChatView] No content generated');
+            }
+        } catch (error: any) {
+            if (error.message !== 'Aborted') {
+                updateMessage(aiMsgId, { content: 'Error: Failed to generate response', status: 'rejected' });
+                console.error('[ChatView] Send message error:', error);
+            }
+        } finally {
+            abortController.current = null;
         }
-    };
+    }, [inputMessage, isGenerating, isInitializing, addMessage, updateMessage, sendMessage]);
 
-    useEffect(() => {
-        messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-    }, [messages, isTyping]);
-
-    // Initialize with welcome message if empty
-    useEffect(() => {
-        if (messages.length === 0) {
-            addMessage({
-                id: '1',
-                role: 'assistant',
-                content: '你好！我可以帮你分析知识卡片、生成思维导图，或进行自由对话。请选择一个模式开始吧。',
-                timestamp: Date.now(),
-                status: 'sent'
-            });
-        }
+    const handleStop = useCallback(() => {
+        abortController.current?.abort();
+        abortController.current = null;
     }, []);
 
-    // Load selected cards from navigation
-    useEffect(() => {
-        if (selectedCardsForChat && selectedCardsForChat.length > 0 && chatMode !== 'cards') {
-            setChatMode('cards');
-            setShowCardSelection(false);
-        }
-    }, [selectedCardsForChat]);
+    const handleAccept = useCallback((msgId: string) => {
+        updateMessage(msgId, { status: 'accepted' });
+    }, [updateMessage]);
 
-    // Clean up AI service on unmount
-    useEffect(() => {
-        return () => {
-            PromptsAI.destroy();
-        };
+    const handleReject = useCallback(async (msgId: string) => {
+        const msg = messages.find(m => m.id === msgId);
+        if (!msg) return;
+
+        const reason = prompt('What would you like to improve?');
+        if (!reason) return;
+
+        updateMessage(msgId, { status: 'rejected', rejectionReason: reason });
+
+        const improvedMsgId = (Date.now() + 1).toString();
+        addMessage({
+            id: improvedMsgId,
+            role: 'assistant',
+            content: '',
+            timestamp: Date.now(),
+            mode: 'chat',
+            status: 'pending'
+        });
+
+        abortController.current = new AbortController();
+        try {
+            await generateImprovement(
+                msg.content,
+                reason,
+                (text) => updateMessage(improvedMsgId, { content: text }),
+                abortController.current.signal
+            );
+            updateMessage(improvedMsgId, { status: 'accepted' });
+        } catch {
+            updateMessage(improvedMsgId, { content: 'Failed to improve', status: 'rejected' });
+        } finally {
+            abortController.current = null;
+        }
+    }, [messages, addMessage, updateMessage, generateImprovement]);
+
+    const handleSaveAsCard = useCallback((_msgId: string) => {
+        alert('Save as Card - TODO');
     }, []);
 
-    return (
-        <div className="h-full flex flex-col bg-gradient-to-br from-gray-50/50 via-transparent to-gray-100/50">
-            {/* Chat Header */}
-            <div className="bg-white/90 backdrop-blur-sm border-b border-gray-200/50 px-4 py-3">
-                <div className="flex items-center gap-2">
-                    <div className="w-8 h-8 rounded-lg bg-emerald-50 flex items-center justify-center">
-                        <Sparkles className="w-4 h-4 text-emerald-600" />
-                    </div>
-                    <div className="flex-1">
-                        <h3 className="text-sm font-semibold text-gray-900">AI Assistant</h3>
-                        <p className="text-xs text-gray-500">
-                            {chatMode === 'free' ? '自由对话模式' :
-                                chatMode === 'cards' ? `卡片对话模式 ${selectedCardsForChat.length > 0 ? `(已选${selectedCardsForChat.length}张)` : ''}` :
-                                    '思维导图模式'}
-                        </p>
-                    </div>
+    const toggleCard = useCallback((cardId: string) => {
+        setSelectedCardsForChat(
+            selectedCardsForChat.includes(cardId)
+                ? selectedCardsForChat.filter(id => id !== cardId)
+                : [...selectedCardsForChat, cardId]
+        );
+    }, [selectedCardsForChat, setSelectedCardsForChat]);
+
+    if (isChecking) {
+        return (
+            <div className="h-full flex items-center justify-center">
+                <div className="text-center">
+                    <div className="w-10 h-10 rounded-full border-3 border-emerald-200 border-t-emerald-500 animate-spin mx-auto mb-3"></div>
+                    <p className="text-xs text-gray-600">Loading AI...</p>
                 </div>
             </div>
+        );
+    }
 
-            {/* Messages Area */}
-            <div className="flex-1 overflow-y-auto">
-                <div className="px-4 py-4 space-y-3">
+    if (isInitializing) {
+        return (
+            <div className="h-full flex items-center justify-center">
+                <div className="text-center">
+                    <div className="w-10 h-10 rounded-full border-3 border-emerald-200 border-t-emerald-500 animate-spin mx-auto mb-3"></div>
+                    <p className="text-xs text-gray-600">Initializing AI Session...</p>
+                    <p className="text-[10px] text-gray-400 mt-2">This may take a few seconds on first use</p>
+                </div>
+            </div>
+        );
+    }
+
+    if (!isAvailable) {
+        return (
+            <div className="h-full flex items-center justify-center p-6">
+                <div className="text-center"><p className="text-sm text-gray-600">Prompt API unavailable</p></div>
+            </div>
+        );
+    }
+
+    return (
+        <div className="h-full flex flex-col bg-gradient-to-br from-gray-50/50 to-white">
+            <div className="flex-shrink-0 bg-white/80 backdrop-blur-sm border-b border-gray-200 px-3 py-2">
+                <div className="flex items-center justify-between">
+                    <div className="text-xs font-medium text-emerald-700">
+                        AI Assistant
+                    </div>
+
+                    <button
+                        onClick={() => setShowCardSelector(!showCardSelector)}
+                        className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-colors flex items-center gap-1.5 ${
+                            selectedCards.length > 0
+                                ? 'bg-emerald-500 text-white hover:bg-emerald-600 border border-emerald-600'
+                                : 'text-emerald-600 hover:text-emerald-700 border border-emerald-200 hover:bg-emerald-50'
+                        }`}
+                    >
+                        <Layers className="w-3.5 h-3.5" />
+                        {selectedCards.length > 0 ? `${selectedCards.length} Card${selectedCards.length > 1 ? 's' : ''} Selected` : 'Select Cards'}
+                    </button>
+
+                    <button
+                        onClick={handleNewConversation}
+                        disabled={isGenerating || isInitializing}
+                        className="px-3 py-1.5 text-xs font-medium text-gray-700 border border-gray-300 hover:bg-gray-50 rounded-lg transition-colors disabled:opacity-50"
+                    >
+                        + New Chat
+                    </button>
+                </div>
+
+                {showCardSelector && (
+                    <div className="absolute top-12 left-1/2 transform -translate-x-1/2 w-80 bg-white rounded-xl shadow-lg border border-gray-200 z-50 p-4">
+                        <div className="flex items-center justify-between mb-3">
+                            <h4 className="text-sm font-semibold text-gray-900">Select Context Cards</h4>
+                            <button
+                                onClick={() => setShowCardSelector(false)}
+                                className="text-gray-400 hover:text-gray-600"
+                            >
+                                <X className="w-4 h-4" />
+                            </button>
+                        </div>
+
+                        <div className="space-y-2 max-h-60 overflow-y-auto">
+                            {cards.filter(card => card.id !== 'sample-card-1').map(card => {
+                                const isSelected = selectedCardsForChat.includes(card.id);
+                                return (
+                                    <label
+                                        key={card.id}
+                                        className={`flex items-start gap-3 p-2.5 rounded-lg cursor-pointer transition-all ${
+                                            isSelected
+                                                ? 'bg-emerald-50 border border-emerald-300'
+                                                : 'bg-gray-50 hover:bg-gray-100 border border-transparent'
+                                        }`}
+                                    >
+                                        <input
+                                            type="checkbox"
+                                            checked={isSelected}
+                                            onChange={() => toggleCard(card.id)}
+                                            className="mt-0.5 w-4 h-4 rounded border-gray-300 text-emerald-600 focus:ring-emerald-500"
+                                        />
+                                        <div className="flex-1 min-w-0">
+                                            <p className="text-sm font-medium text-gray-900 truncate">
+                                                {card.title}
+                                            </p>
+                                            <p className="text-xs text-gray-500 line-clamp-2 mt-0.5">
+                                                {card.content}
+                                            </p>
+                                        </div>
+                                    </label>
+                                );
+                            })}
+                        </div>
+
+                        <button
+                            onClick={() => setShowCardSelector(false)}
+                            className="w-full mt-3 px-3 py-2 bg-emerald-500 text-white text-sm rounded-lg hover:bg-emerald-600 transition-colors font-medium"
+                        >
+                            Done
+                        </button>
+                    </div>
+                )}
+            </div>
+
+            <div
+                ref={messagesContainerRef}
+                onScroll={handleScroll}
+                className="flex-1 overflow-y-auto px-3 pt-2 pb-4"
+            >
+                {selectedCards.length === 0 && (
+                    <div className="px-3 py-1 mb-2 bg-amber-50 border border-amber-200 rounded-lg">
+                        <p className="text-xs text-amber-700 text-center">
+                            💡 Select cards above for better context
+                        </p>
+                    </div>
+                )}
+
+                {messages.length === 0 && (
+                    <div className="max-w-2xl mx-auto mt-8 mb-8">
+                        <div className="bg-gradient-to-br from-emerald-50 to-teal-50 rounded-2xl p-6 border border-emerald-200">
+                            <h3 className="text-lg font-semibold text-gray-800 mb-3">
+                                Welcome! How can I help you today?
+                            </h3>
+                            <p className="text-sm text-gray-600 mb-4">
+                                I'm here to assist with your knowledge cards and answer questions. Use the quick actions below or type your own question.
+                            </p>
+
+                            <div className="bg-amber-50/70 rounded-lg p-3 mb-4 border border-amber-200">
+                                <p className="text-xs text-gray-700">
+                                    <span className="font-medium">💡 Pro tip:</span> Select cards above for context-aware responses.
+                                    {selectedCards.length === 0 ? (
+                                        <span className="text-emerald-600"> No cards selected yet.</span>
+                                    ) : (
+                                        <span className="text-emerald-600"> {selectedCards.length} card{selectedCards.length > 1 ? 's' : ''} selected.</span>
+                                    )}
+                                </p>
+                            </div>
+
+                            <div className="space-y-3 text-sm">
+                                <div className="flex items-start gap-3">
+                                    <div className="w-6 h-6 rounded-lg bg-amber-100 flex items-center justify-center flex-shrink-0 mt-0.5">
+                                        <Lightbulb className="w-3.5 h-3.5 text-amber-600" />
+                                    </div>
+                                    <div>
+                                        <span className="font-medium text-gray-800">Insight</span>
+                                        <p className="text-xs text-gray-600 mt-0.5">Deep analysis and structured understanding of concepts</p>
+                                    </div>
+                                </div>
+
+                                <div className="flex items-start gap-3">
+                                    <div className="w-6 h-6 rounded-lg bg-blue-100 flex items-center justify-center flex-shrink-0 mt-0.5">
+                                        <GitCompare className="w-3.5 h-3.5 text-blue-600" />
+                                    </div>
+                                    <div>
+                                        <span className="font-medium text-gray-800">Compare</span>
+                                        <span className="text-xs text-blue-600 ml-1">(2+ cards)</span>
+                                        <p className="text-xs text-gray-600 mt-0.5">Contrast ideas and weigh pros & cons</p>
+                                    </div>
+                                </div>
+
+                                <div className="flex items-start gap-3">
+                                    <div className="w-6 h-6 rounded-lg bg-purple-100 flex items-center justify-center flex-shrink-0 mt-0.5">
+                                        <Compass className="w-3.5 h-3.5 text-purple-600" />
+                                    </div>
+                                    <div>
+                                        <span className="font-medium text-gray-800">Explore</span>
+                                        <p className="text-xs text-gray-600 mt-0.5">Discover connections and find related resources</p>
+                                    </div>
+                                </div>
+
+                                <div className="flex items-start gap-3">
+                                    <div className="w-6 h-6 rounded-lg bg-green-100 flex items-center justify-center flex-shrink-0 mt-0.5">
+                                        <PenTool className="w-3.5 h-3.5 text-green-600" />
+                                    </div>
+                                    <div>
+                                        <span className="font-medium text-gray-800">Write</span>
+                                        <p className="text-xs text-gray-600 mt-0.5">Generate summaries, outlines, memos, and emails</p>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div className="mt-4 pt-4 border-t border-emerald-200/50">
+                                <p className="text-xs text-gray-600">
+                                    💬 <span className="font-medium">Ask anything</span> - Type your question below and I'll help you find answers
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                )}
+
+                <div className="space-y-3">
                     {messages.map(msg => (
-                        <div key={msg.id} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-                            <div className={`max-w-[85%]`}>
-                                <div className={`px-4 py-2.5 text-sm ${
-                                    msg.role === 'user'
-                                        ? 'bg-emerald-100 text-gray-800 rounded-2xl rounded-br-sm shadow-sm'
-                                        : msg.status === 'error'
-                                            ? 'bg-red-50 text-red-800 rounded-2xl rounded-bl-sm shadow-sm border border-red-200'
-                                            : 'bg-white/90 text-gray-800 rounded-2xl rounded-bl-sm shadow-sm border border-gray-100'
-                                }`}>
-                                    <p className="whitespace-pre-wrap">{msg.content}</p>
-                                </div>
-                                <div className={`mt-1 px-1 ${msg.role === 'user' ? 'text-right' : ''}`}>
-                                    <span className="text-[10px] text-gray-400">
-                                        {formatTime(msg.timestamp)}
-                                    </span>
-                                </div>
-                            </div>
-                        </div>
+                        <MessageBubble
+                            key={msg.id}
+                            msg={msg}
+                            cards={selectedCards}
+                            onAccept={handleAccept}
+                            onReject={handleReject}
+                            onSave={handleSaveAsCard}
+                        />
                     ))}
-
-                    {isTyping && (
-                        <div className="flex justify-start">
-                            <div className="bg-white/90 border border-gray-100 rounded-2xl rounded-bl-sm px-4 py-3 shadow-sm">
-                                <div className="flex gap-1">
-                                    <div className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
-                                    <div className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
-                                    <div className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
-                                </div>
-                            </div>
-                        </div>
-                    )}
-
                     <div ref={messagesEndRef} />
                 </div>
             </div>
 
-            {/* Card Selection Panel */}
-            {showCardSelection && chatMode === 'cards' && (
-                <div className="px-4 py-2 bg-white/90 backdrop-blur-sm border-t border-gray-200/50 max-h-48 overflow-y-auto">
-                    <div className="text-xs font-medium text-gray-700 mb-2">选择相关卡片</div>
-                    <div className="grid grid-cols-1 gap-1">
-                        {cards.map(card => (
-                            <label
-                                key={card.id}
-                                className="flex items-center gap-2 p-2 hover:bg-gray-50 rounded-lg cursor-pointer transition-colors"
-                            >
-                                <input
-                                    type="checkbox"
-                                    checked={selectedCardsForChat.includes(card.id)}
-                                    onChange={(e) => {
-                                        if (e.target.checked) {
-                                            setSelectedCardsForChat([...selectedCardsForChat, card.id]);
-                                        } else {
-                                            setSelectedCardsForChat(selectedCardsForChat.filter(id => id !== card.id));
-                                        }
-                                    }}
-                                    className="rounded border-gray-300 text-emerald-600 focus:ring-emerald-500"
-                                />
-                                <span className="text-xs text-gray-700 flex-1 truncate">{card.title}</span>
-                            </label>
-                        ))}
-                    </div>
-                </div>
-            )}
-
-            {/* Input Area */}
-            <div className="bg-white/90 backdrop-blur-sm border-t border-gray-200/50">
-                <div className="p-3">
-                    <div className="bg-white border border-gray-300 rounded-xl focus-within:border-emerald-400 transition-all">
-                        {/* Mode Selector */}
-                        <div className="flex items-center gap-2 px-3 pt-3 pb-2 border-b border-gray-100">
-                            <button
-                                onClick={() => {
-                                    setChatMode('free');
-                                    setShowCardSelection(false);
-                                }}
-                                className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-all flex items-center gap-1.5 border ${
-                                    chatMode === 'free'
-                                        ? 'bg-emerald-50 text-emerald-700 border-emerald-200 shadow-sm'
-                                        : 'text-gray-600 hover:bg-gray-50 border-transparent hover:border-gray-200'
-                                }`}
-                            >
-                                <MessageSquare className="w-3.5 h-3.5" />
-                                自由对话
-                            </button>
-                            <button
-                                onClick={() => {
-                                    setChatMode('cards');
-                                    setShowCardSelection(!showCardSelection);
-                                }}
-                                className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-all flex items-center gap-1.5 border ${
-                                    chatMode === 'cards'
-                                        ? 'bg-emerald-50 text-emerald-700 border-emerald-200 shadow-sm'
-                                        : 'text-gray-600 hover:bg-gray-50 border-transparent hover:border-gray-200'
-                                }`}
-                            >
-                                <Layers className="w-3.5 h-3.5" />
-                                卡片对话
-                                {selectedCardsForChat.length > 0 && (
-                                    <span className="px-1.5 py-0.5 bg-emerald-500 text-white text-[10px] rounded-full">
-                                        {selectedCardsForChat.length}
-                                    </span>
-                                )}
-                            </button>
-                            <button
-                                onClick={() => {
-                                    setChatMode('mindmap');
-                                    setShowCardSelection(false);
-                                }}
-                                className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-all flex items-center gap-1.5 border ${
-                                    chatMode === 'mindmap'
-                                        ? 'bg-emerald-50 text-emerald-700 border-emerald-200 shadow-sm'
-                                        : 'text-gray-600 hover:bg-gray-50 border-transparent hover:border-gray-200'
-                                }`}
-                            >
-                                <Brain className="w-3.5 h-3.5" />
-                                生成脑图
-                            </button>
+            <div className="flex-shrink-0 px-3 py-1.5 bg-gray-50/50 relative">
+                {showWriteMenu && (
+                    <div className="write-menu-container absolute bottom-full right-3 mb-2 bg-white rounded-lg shadow-xl border border-gray-200 py-2 w-56 z-50">
+                        <div className="px-3 py-1 text-[10px] font-medium text-gray-500 uppercase">
+                            Writing Tasks
                         </div>
-
-                        {/* Input Field */}
-                        <div className="px-3 py-2">
-                            <textarea
-                                placeholder={
-                                    chatMode === 'mindmap'
-                                        ? "描述你想要生成的思维导图主题..."
-                                        : chatMode === 'cards' && selectedCardsForChat.length > 0
-                                            ? "基于选中的卡片提问..."
-                                            : chatMode === 'cards'
-                                                ? "请先选择相关的知识卡片..."
-                                                : "输入消息..."
-                                }
-                                className="w-full text-sm focus:outline-none resize-none text-gray-700 placeholder-gray-400"
-                                value={inputMessage}
-                                onChange={(e) => setInputMessage(e.target.value)}
-                                onKeyPress={(e) => {
-                                    if (e.key === 'Enter' && !e.shiftKey) {
-                                        e.preventDefault();
-                                        handleSend();
-                                    }
-                                }}
-                                rows={1}
-                                disabled={chatMode === 'cards' && selectedCardsForChat.length === 0}
-                            />
-                        </div>
-
-                        {/* Actions Bar */}
-                        <div className="flex items-center justify-between px-3 pb-3">
-                            <div className="flex items-center gap-2">
-                                {chatMode === 'cards' && (
-                                    <button
-                                        onClick={() => setShowCardSelection(!showCardSelection)}
-                                        className="text-gray-500 hover:text-gray-700 transition-colors"
-                                    >
-                                        <Paperclip className="w-4 h-4" />
-                                    </button>
-                                )}
+                        <button
+                            onClick={() => handleWriteTask('summary')}
+                            className="w-full px-3 py-2 text-left hover:bg-emerald-50 transition-colors flex items-center gap-2"
+                        >
+                            <span className="text-base">📝</span>
+                            <div>
+                                <div className="text-sm font-medium text-gray-900">Summary</div>
+                                <div className="text-xs text-gray-500">Concise overview</div>
                             </div>
+                        </button>
+                        <button
+                            onClick={() => handleWriteTask('outline')}
+                            className="w-full px-3 py-2 text-left hover:bg-emerald-50 transition-colors flex items-center gap-2"
+                        >
+                            <span className="text-base">📋</span>
+                            <div>
+                                <div className="text-sm font-medium text-gray-900">Outline</div>
+                                <div className="text-xs text-gray-500">Structured framework</div>
+                            </div>
+                        </button>
+                        <button
+                            onClick={() => handleWriteTask('memo')}
+                            className="w-full px-3 py-2 text-left hover:bg-emerald-50 transition-colors flex items-center gap-2"
+                        >
+                            <span className="text-base">📄</span>
+                            <div>
+                                <div className="text-sm font-medium text-gray-900">Memo</div>
+                                <div className="text-xs text-gray-500">Brief update</div>
+                            </div>
+                        </button>
+                        <button
+                            onClick={() => handleWriteTask('email')}
+                            className="w-full px-3 py-2 text-left hover:bg-emerald-50 transition-colors flex items-center gap-2"
+                        >
+                            <span className="text-base">✉️</span>
+                            <div>
+                                <div className="text-sm font-medium text-gray-900">Email</div>
+                                <div className="text-xs text-gray-500">Professional draft</div>
+                            </div>
+                        </button>
+                    </div>
+                )}
 
+                <div className="flex gap-2 justify-center">
+                    <button
+                        onClick={() => handleQuickAction('insight')}
+                        disabled={isGenerating || isInitializing}
+                        className={`px-2.5 py-1.5 rounded-lg shadow-lg border transition-all disabled:opacity-60 flex items-center gap-1.5 group ${
+                            activeButton === 'insight'
+                                ? 'bg-emerald-500 text-white border-emerald-600 shadow-xl'
+                                : 'bg-white hover:bg-emerald-500 hover:text-white border-gray-200 hover:border-emerald-600'
+                        }`}
+                    >
+                        <Lightbulb className={`w-3.5 h-3.5 ${
+                            activeButton === 'insight' ? 'text-white' : 'text-amber-500 group-hover:text-white'
+                        }`} />
+                        <span className="text-xs font-medium">Insight</span>
+                    </button>
+
+                    <button
+                        onClick={() => handleQuickAction('compare')}
+                        disabled={isGenerating || isInitializing}
+                        className={`px-2.5 py-1.5 rounded-lg shadow-lg border transition-all disabled:opacity-60 flex items-center gap-1.5 group ${
+                            activeButton === 'compare'
+                                ? 'bg-emerald-500 text-white border-emerald-600 shadow-xl'
+                                : 'bg-white hover:bg-emerald-500 hover:text-white border-gray-200 hover:border-emerald-600'
+                        }`}
+                    >
+                        <GitCompare className={`w-3.5 h-3.5 ${
+                            activeButton === 'compare' ? 'text-white' : 'text-blue-500 group-hover:text-white'
+                        }`} />
+                        <span className="text-xs font-medium">Compare</span>
+                    </button>
+
+                    <button
+                        onClick={() => handleQuickAction('explore')}
+                        disabled={isGenerating || isInitializing}
+                        className={`px-2.5 py-1.5 rounded-lg shadow-lg border transition-all disabled:opacity-60 flex items-center gap-1.5 group ${
+                            activeButton === 'explore'
+                                ? 'bg-emerald-500 text-white border-emerald-600 shadow-xl'
+                                : 'bg-white hover:bg-emerald-500 hover:text-white border-gray-200 hover:border-emerald-600'
+                        }`}
+                    >
+                        <Compass className={`w-3.5 h-3.5 ${
+                            activeButton === 'explore' ? 'text-white' : 'text-purple-500 group-hover:text-white'
+                        }`} />
+                        <span className="text-xs font-medium">Explore</span>
+                    </button>
+
+                    <button
+                        onClick={() => handleQuickAction('write')}
+                        disabled={isGenerating || isInitializing}
+                        className={`px-2.5 py-1.5 rounded-lg shadow-lg border transition-all disabled:opacity-60 flex items-center gap-1.5 group ${
+                            activeButton === 'write' || showWriteMenu
+                                ? 'bg-emerald-500 text-white border-emerald-600 shadow-xl'
+                                : 'bg-white hover:bg-emerald-500 hover:text-white border-gray-200 hover:border-emerald-600'
+                        }`}
+                    >
+                        <PenTool className={`w-3.5 h-3.5 ${
+                            activeButton === 'write' || showWriteMenu ? 'text-white' : 'text-green-500 group-hover:text-white'
+                        }`} />
+                        <span className="text-xs font-medium">Write</span>
+                    </button>
+                </div>
+            </div>
+
+            <div className="flex-shrink-0 bg-white/95 backdrop-blur-xl border-t border-gray-200 shadow-lg">
+                {isInitializing && (
+                    <div className="px-3 py-2 bg-amber-50 border-b border-amber-200">
+                        <p className="text-xs text-amber-700 text-center flex items-center justify-center gap-2">
+                            <div className="w-3 h-3 rounded-full border-2 border-amber-300 border-t-amber-600 animate-spin" />
+                            Preparing AI session, please wait...
+                        </p>
+                    </div>
+                )}
+
+                <div className="px-3 py-3">
+                    <div className="relative">
+                        <textarea
+                            value={inputMessage}
+                            onChange={(e) => setInputMessage(e.target.value)}
+                            onKeyDown={(e) => {
+                                if (e.key === 'Enter' && !e.shiftKey) {
+                                    e.preventDefault();
+                                    handleSend();
+                                }
+                            }}
+                            placeholder="Message AI..."
+                            disabled={isGenerating || isInitializing}
+                            className="w-full px-3 py-2.5 pr-12 bg-gray-50 border border-gray-300 rounded-xl text-sm resize-none focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:bg-white transition-all"
+                            rows={3}
+                        />
+
+                        {isGenerating ? (
+                            <button
+                                onClick={handleStop}
+                                className="absolute bottom-2 right-2 w-8 h-8 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors flex items-center justify-center"
+                            >
+                                <Square className="w-3.5 h-3.5" />
+                            </button>
+                        ) : (
                             <button
                                 onClick={handleSend}
-                                disabled={!inputMessage.trim() || (chatMode === 'cards' && selectedCardsForChat.length === 0)}
-                                className={`p-2 rounded-lg transition-all border shadow-sm hover:shadow-md ${
-                                    inputMessage.trim() && (chatMode !== 'cards' || selectedCardsForChat.length > 0)
-                                        ? 'bg-emerald-500 text-white hover:bg-emerald-600 border-emerald-600'
-                                        : 'bg-gray-100 text-gray-400 border-gray-200 cursor-not-allowed'
-                                }`}
+                                disabled={!inputMessage.trim() || isInitializing}
+                                className="absolute bottom-2 right-2 w-8 h-8 bg-emerald-500 text-white rounded-lg hover:bg-emerald-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
                             >
-                                <ArrowUp className="w-4 h-4" />
+                                <Send className="w-3.5 h-3.5" />
                             </button>
-                        </div>
+                        )}
                     </div>
                 </div>
             </div>

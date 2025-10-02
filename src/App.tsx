@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useStore } from './sidepanel/store';
 import { NavigationBar } from './sidepanel/components/layout/NavigationBar';
 import { AddCardModal } from './sidepanel/components/modals/AddCardModal';

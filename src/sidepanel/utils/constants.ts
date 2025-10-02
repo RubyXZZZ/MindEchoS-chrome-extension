@@ -23,7 +23,8 @@ export const PROTECTED_CATEGORIES = [DEFAULT_CATEGORY];
 
 export const STORAGE_KEYS = {
     CARDS: 'knowledge_cards',
-    CHAT_HISTORY: 'chat_history',
+    CURRENT_CHAT: 'current_chat',        // 新增：当前对话
+    CHAT_ARCHIVES: 'chat_archives',      // 新增：归档对话
     PREFERENCES: 'user_preferences',
     USER_CATEGORIES: 'userCategories', // Explicitly define storage key for categories
 } as const;

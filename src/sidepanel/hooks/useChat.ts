@@ -1,7 +1,7 @@
 // import { useState, useRef, useEffect, useCallback } from 'react';
 // import { useStore } from '../store';
 // import { ChatMessage, ChatMode } from '../types/chat.types';
-// import { PromptsAI } from '../services/ai/promptsAI';
+// import { PromptAI } from '../services/ai/promptsAI';
 //
 // interface UseChatOptions {
 //     autoScroll?: boolean;
@@ -79,7 +79,7 @@
 //                 : undefined;
 //
 //             // Generate AI response
-//             const response = await PromptsAI.generateResponse(messageText, {
+//             const response = await PromptAI.generateResponse(messageText, {
 //                 mode: chatMode,
 //                 cards: selectedCards,
 //                 history: messages.slice(-10)

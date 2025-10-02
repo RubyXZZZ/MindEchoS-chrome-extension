@@ -1,6 +1,6 @@
 {
   "manifest_version": 3,
-  "name": "Knowledge Cards",
+  "name": "MindEchoS",
   "version": "1.0.0",
   "description": "Simple knowledge management with AI",
   "permissions": [
