@@ -34,10 +34,10 @@ export const FUNCTION_PROMPTS = {
     understand: {
         getPrompt: (cardCount: number) => `Help me understand the card content simply and effectively. Follow these guidelines:
 
-- Start with the main idea and explain key concepts clearly
-- Use analogies or short examples to make it easy to grasp
-- ${cardCount > 1 ? 'Show how the cards relate or differ' : 'Analyze relationships among keypoints'}
-- Keep under 250 words total`
+- Explain: Summarize the main idea and explain key concepts clearly
+- Illustrate: Use analogies or short examples to make it easy to grasp
+- Connect: ${cardCount > 1 ? 'Show how the cards relate or differ' : 'Analyze relationships among keypoints'}
+- Be concise. Keep under 250 words total`
     },
 
     compare: {
@@ -198,7 +198,7 @@ export class PromptAI {
             ).join('\n\n')}\n\nUse these cards as the knowledge base for your response.`
             : '';
 
-        const systemPrompt = `You are an intelligent assistant helping users work with their knowledge cards.
+        const systemPrompt = `You are an intelligent assistant helping users work with their knowledge cards and questions.
 
 Format Rules (Narrow Chrome Extension):
 - Paragraphs: 2-3 sentences maximum

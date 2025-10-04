@@ -1,84 +1,72 @@
-// import React, { useRef, useEffect } from 'react';
-// import { Send, Paperclip } from 'lucide-react';
-//
-// interface ChatInputProps {
-//     value: string;
-//     onChange: (value: string) => void;
-//     onSend: () => void;
-//     disabled?: boolean;
-//     placeholder?: string;
-//     onAttach?: () => void;
-// }
-//
-// export const ChatInput: React.FC<ChatInputProps> = ({
-//                                                         value,
-//                                                         onChange,
-//                                                         onSend,
-//                                                         disabled = false,
-//                                                         placeholder = '输入消息...',
-//                                                         onAttach,
-//                                                     }) => {
-//     const textareaRef = useRef<HTMLTextAreaElement>(null);
-//
-//     // Auto-resize textarea
-//     useEffect(() => {
-//         if (textareaRef.current) {
-//             textareaRef.current.style.height = 'auto';
-//             textareaRef.current.style.height = `${textareaRef.current.scrollHeight}px`;
-//         }
-//     }, [value]);
-//
-//     const handleKeyPress = (e: React.KeyboardEvent) => {
-//         if (e.key === 'Enter' && !e.shiftKey) {
-//             e.preventDefault();
-//             if (!disabled && value.trim()) {
-//                 onSend();
-//             }
-//         }
-//     };
-//
-//     return (
-//         <div className="bg-white/90 backdrop-blur-sm border-t border-gray-200/50 p-3">
-//             <div className="bg-white border border-gray-300 rounded-xl focus-within:border-emerald-400 transition-all">
-//                 <div className="flex items-end p-3 gap-2">
-//                     {/* Attachment Button */}
-//                     {onAttach && (
-//                         <button
-//                             onClick={onAttach}
-//                             disabled={disabled}
-//                             className="p-1.5 text-gray-500 hover:text-gray-700 transition-colors disabled:opacity-50"
-//                         >
-//                             <Paperclip className="w-4 h-4" />
-//                         </button>
-//                     )}
-//
-//                     {/* Text Input */}
-//                     <textarea
-//                         ref={textareaRef}
-//                         value={value}
-//                         onChange={(e) => onChange(e.target.value)}
-//                         onKeyPress={handleKeyPress}
-//                         disabled={disabled}
-//                         placeholder={placeholder}
-//                         className="flex-1 text-sm focus:outline-none resize-none text-gray-700
-//               placeholder-gray-400 disabled:opacity-50 max-h-32"
-//                         rows={1}
-//                     />
-//
-//                     {/* Send Button */}
-//                     <button
-//                         onClick={onSend}
-//                         disabled={disabled || !value.trim()}
-//                         className={`p-2 rounded-lg transition-all ${
-//                             !disabled && value.trim()
-//                                 ? 'bg-emerald-500 text-white hover:bg-emerald-600 shadow-sm hover:shadow-md'
-//                                 : 'bg-gray-100 text-gray-400 cursor-not-allowed'
-//                         }`}
-//                     >
-//                         <Send className="w-4 h-4" />
-//                     </button>
-//                 </div>
-//             </div>
-//         </div>
-//     );
-// };
+// components/chat/ChatInput.tsx
+import React from 'react';
+import { Send, Square } from 'lucide-react';
+
+interface ChatInputProps {
+    inputMessage: string;
+    isGenerating: boolean;
+    isInitializing: boolean;
+    sessionReady: boolean;
+    onInputChange: (value: string) => void;
+    onSend: () => void;
+    onStop: () => void;
+}
+
+export const ChatInput: React.FC<ChatInputProps> = ({
+                                                        inputMessage,
+                                                        isGenerating,
+                                                        isInitializing,
+                                                        sessionReady,
+                                                        onInputChange,
+                                                        onSend,
+                                                        onStop
+                                                    }) => {
+    return (
+        <div className="flex-shrink-0 bg-white/95 backdrop-blur-xl border-t border-gray-200 shadow-lg">
+            {isInitializing && (
+                <div className="px-3 py-2 bg-amber-50 border-b border-amber-200">
+                    <p className="text-xs text-amber-700 text-center flex items-center justify-center gap-2">
+                        <div className="w-3 h-3 rounded-full border-2 border-amber-300 border-t-amber-600 animate-spin" />
+                        Preparing AI session, please wait...
+                    </p>
+                </div>
+            )}
+
+            <div className="px-3 py-3">
+                <div className="relative">
+                    <textarea
+                        value={inputMessage}
+                        onChange={(e) => onInputChange(e.target.value)}
+                        onKeyDown={(e) => {
+                            if (e.key === 'Enter' && !e.shiftKey) {
+                                e.preventDefault();
+                                onSend();
+                            }
+                        }}
+                        placeholder="Message AI..."
+                        disabled={isGenerating || isInitializing || !sessionReady}
+                        className="w-full px-3 py-2.5 pr-12 bg-gray-50 border border-gray-300 rounded-xl text-sm resize-none focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:bg-white transition-all"
+                        rows={3}
+                    />
+
+                    {isGenerating ? (
+                        <button
+                            onClick={onStop}
+                            className="absolute bottom-2 right-2 w-8 h-8 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors flex items-center justify-center"
+                        >
+                            <Square className="w-3.5 h-3.5" />
+                        </button>
+                    ) : (
+                        <button
+                            onClick={onSend}
+                            disabled={!inputMessage.trim() || isInitializing || !sessionReady}
+                            className="absolute bottom-2 right-2 w-8 h-8 bg-emerald-500 text-white rounded-lg hover:bg-emerald-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
+                        >
+                            <Send className="w-3.5 h-3.5" />
+                        </button>
+                    )}
+                </div>
+            </div>
+        </div>
+    );
+};
