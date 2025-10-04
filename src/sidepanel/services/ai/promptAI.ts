@@ -1,8 +1,8 @@
 // services/ai/promptAI.ts
 // Chrome Prompt API 实现
 // 基于官方文档：https://developer.chrome.com/docs/ai/prompt-api
+import { FunctionMode } from '../../types/chat.types';
 
-export type FunctionMode = 'insight' | 'compare' | 'explore' | 'write' | 'chat';
 
 interface PromptSession {
     prompt(input: string, options?: { signal?: AbortSignal }): Promise<string>;
@@ -69,13 +69,9 @@ export class PromptAI {
     /**
      * 创建对话 session
      */
-    /**
-     * 创建对话 session---测试跳过system prompt
-     */
     async createSession(
         mode: FunctionMode = 'chat',
-        cards: Array<{ title: string; content: string; url?: string }> = [],
-        skipSystemPrompt: boolean = false
+        cards: Array<{ title: string; content: string }> = []
     ): Promise<boolean> {
         try {
             const availability = await this.checkAvailability();
@@ -102,10 +98,8 @@ export class PromptAI {
             this.currentMode = mode;
             this.currentCards = validCards;
 
-            // 构建系统提示（测试时可跳过）
-            const systemPrompt = skipSystemPrompt
-                ? ''
-                : this.getSystemPrompt(mode, validCards);
+            // 构建系统提示
+            const systemPrompt = this.getSystemPrompt(mode, validCards);
 
             // 创建新 session
             this.session = await LanguageModel.create({
@@ -121,7 +115,7 @@ export class PromptAI {
                 }
             });
 
-            console.log('[PromptAI] Session created for mode:', mode, skipSystemPrompt ? '(no system prompt)' : '');
+            console.log('[PromptAI] Session created for mode:', mode);
             if (this.session?.inputQuota) {
                 console.log('[PromptAI] Token quota:', this.session.inputQuota);
             }
@@ -132,74 +126,17 @@ export class PromptAI {
             return false;
         }
     }
-    // async createSession(
-    //     mode: FunctionMode = 'chat',
-    //     cards: Array<{ title: string; content: string; url?: string }> = []
-    // ): Promise<boolean> {
-    //     try {
-    //         const availability = await this.checkAvailability();
-    //         if (availability === 'no') {
-    //             return false;
-    //         }
-    //
-    //         const validCards = Array.isArray(cards) ? cards : [];
-    //
-    //         // 检查是否需要重新创建session
-    //         if (this.session && this.currentMode === mode &&
-    //             JSON.stringify(this.currentCards) === JSON.stringify(validCards)) {
-    //             console.log('[PromptAI] Reusing existing session');
-    //             return true;
-    //         }
-    //
-    //         // 销毁旧 session
-    //         if (this.session) {
-    //             this.session.destroy();
-    //             this.session = null;
-    //         }
-    //
-    //         // 更新当前状态
-    //         this.currentMode = mode;
-    //         this.currentCards = validCards;
-    //
-    //         // 构建系统提示
-    //         const systemPrompt = this.getSystemPrompt(mode, validCards);
-    //
-    //         // 创建新 session
-    //         this.session = await LanguageModel.create({
-    //             temperature: 0.8,
-    //             topK: 40,
-    //             initialPrompts: systemPrompt ? [
-    //                 { role: 'system', content: systemPrompt }
-    //             ] : [],
-    //             monitor(m) {
-    //                 m.addEventListener('downloadprogress', (e: any) => {
-    //                     console.log(`[PromptAI] Model download progress: ${Math.round(e.loaded * 100)}%`);
-    //                 });
-    //             }
-    //         });
-    //
-    //         console.log('[PromptAI] Session created for mode:', mode);
-    //         if (this.session?.inputQuota) {
-    //             console.log('[PromptAI] Token quota:', this.session.inputQuota);
-    //         }
-    //
-    //         return true;
-    //     } catch (error) {
-    //         console.error('[PromptAI] Failed to create session:', error);
-    //         return false;
-    //     }
-    // }
 
     /**
      * 根据模式和卡片生成系统提示
      */
-    private getSystemPrompt(mode: FunctionMode, cards: Array<{ title: string; content: string; url?: string }>): string {
+    private getSystemPrompt(mode: FunctionMode, cards: Array<{ title: string; content: string }>): string {
         const validCards = Array.isArray(cards) ? cards : [];
 
-        // 👇 添加 URL
+        // 构建卡片上下文
         const cardContext = validCards.length > 0
             ? `\n\n## Knowledge Cards Context:\n${validCards.map((c, index) =>
-                `**Card ${index + 1}: ${c.title}**\n${c.content}${c.url ? `\nSource: ${c.url}` : ''}`
+                `**Card ${index + 1}: ${c.title}**\n${c.content}`
             ).join('\n\n')}\n\nReference these cards when answering.`
             : '';
 
@@ -223,96 +160,91 @@ ${formatGuidelines}
 Answer questions clearly and concisely. Adapt your depth based on the question complexity.
 ${cardContext}`,
 
-            insight: `You are a **Deep Analysis Expert** specializing in breaking down complex concepts.
+            understand: `You are a **Concept Explainer** who clarifies ideas and reveals relationships.
 
 ${formatGuidelines}
 
 ## Your Mission:
-Provide structured insights that reveal:
-- **Core Concepts** - What are the fundamentals?
-- **Key Patterns** - What recurring themes exist?
-- **Deeper Meaning** - What are the implications?
-- **Practical Use** - How to apply this knowledge?
-- **Next Steps** - What to explore further?
+Help users understand by providing:
+- **Explanation** - Define concepts in plain, simple language
+- **Connections** - Show how ideas relate and build on each other
+- **Differences** - Clarify distinctions between similar or related concepts
+- **Examples** - Use analogies and real-world cases
+- **Context** - Explain why this matters
 
-## Analysis Style:
-- Start with a brief summary
-- Use analogies to clarify
-- Break complex ideas into simple parts
-- Connect abstract to concrete
-- Question assumptions
+## Approach:
+- Start with core definitions
+- Explain relationships between concepts
+- Point out key differences when multiple ideas are present
+- Use concrete examples and analogies
+- Build from simple to complex
 ${cardContext}`,
 
-            compare: `You are a **Comparison Specialist** expert at contrasting ideas and weighing options.
+            compare: `You are a **Comparison Analyst** examining options and trade-offs.
 
 ${formatGuidelines}
 
 ## Your Mission:
-Create clear comparisons showing:
-- **Key Similarities** - What do they share?
-- **Critical Differences** - Where do they diverge?
-- **Pros & Cons** - Strengths and weaknesses of each
-- **Use Cases** - When to use each approach?
-- **Decision Guide** - How to choose between them?
+Provide systematic comparison showing:
+- **Similarities** - What they have in common
+- **Differences** - How they diverge
+- **Pros & Cons** - Advantages and disadvantages
+- **Trade-offs** - What you gain vs. what you sacrifice
+- **Use Cases** - When to choose each option
+- **Decision Factors** - Key criteria for selection
 
-## Comparison Style:
-- Use side-by-side bullet points
-- Highlight trade-offs
-- Be objective and balanced
-- Provide concrete examples
-- End with actionable recommendations
+## Format:
+- Use comparison tables (2-3 columns max)
+- Side-by-side bullet points
+- Highlight critical trade-offs
+- Be objective and evidence-based
 ${cardContext}`,
 
-            explore: `You are a **Research Navigator** helping users discover related knowledge and resources.
+            quiz: `You are a **Quiz Generator** creating effective learning assessments.
 
 ${formatGuidelines}
 
 ## Your Mission:
-Guide exploration with:
-- **Related Concepts** - Adjacent ideas to explore
-- **Learning Resources** - Specific recommendations:
-  * Academic papers (with titles)
-  * YouTube channels/videos
-  * GitHub projects
-  * Online courses
-  * Books/articles
-- **Research Directions** - Promising areas to investigate
-- **Learning Path** - Suggested exploration sequence
+Generate multiple-choice questions that:
+- **Test Understanding** - Not just recall
+- **Clear Questions** - Unambiguous stems
+- **Plausible Options** - Distractors that test knowledge
+- **One Correct Answer** - Clearly identifiable
+- **Include Explanations** - Why the answer is correct
 
-## Exploration Style:
-- Recommend specific, named resources
-- Explain why each resource is valuable
-- Match user's current level
-- Include both foundational and cutting-edge materials
-- Organize by topic or difficulty
+## Format:
+Q1: [Question testing comprehension]
+A) [Option]
+B) [Option]  
+C) [Option]
+D) [Option]
+Correct: B
+Explanation: [Brief reason]
+
+Focus on application and understanding, not trivial facts.
 ${cardContext}`,
 
-            write: `You are a **Writing Architect** crafting professional, structured content.
+            write: `You are a **Draft Generator** creating frameworks and initial versions.
 
 ${formatGuidelines}
 
 ## Your Mission:
-Create polished content including:
-- **Document Type** - Best format for the goal
-- **Outline** - Clear structure with sections
-- **Key Messages** - Core ideas to communicate
-- **Draft Content** - Actual written sections
-- **Enhancement Tips** - How to improve further
+Create structured drafts including:
+- **Clear Framework** - Organized structure
+- **Key Points** - Essential content
+- **Initial Draft** - Rough version for refinement
+- **Actionable Output** - Ready to build upon
 
-## Document Types You Create:
-- Executive summaries
-- Technical reports
-- Blog post outlines
-- Study guides
-- Project proposals
-- Documentation
+## Output Types:
+- Executive summaries (concise overviews)
+- Structural outlines (frameworks only)
+- Report drafts (initial versions needing editing)
 
-## Writing Style:
-- Match tone to audience
-- Use clear topic sentences
-- Include concrete examples
-- Balance detail with readability
-- Provide polished, ready-to-use text
+## Style:
+- Prioritize structure over polish
+- Include content placeholders where needed
+- Focus on completeness, not perfection
+- Create starting points for human refinement
 ${cardContext}`
         };
 

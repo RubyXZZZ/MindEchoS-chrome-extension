@@ -1,31 +1,23 @@
 // types/chat.types.ts
 
-export type FunctionMode = 'chat' | 'insight' | 'structure' | 'search' | 'write';
+export type FunctionMode = 'understand' | 'compare' | 'quiz' | 'write' | 'chat';
 
 export interface ChatMessage {
     id: string;
     role: 'user' | 'assistant';
     content: string;
     timestamp: number;
-    mode?: FunctionMode;
-    status?: 'pending' | 'accepted' | 'rejected';  // AI 消息的状态
-    rejectionReason?: string;  // 拒绝理由
-    triggeredBy?: string;  // 触发来源（如 Insight, Compare, Explore, Write）
+    mode: 'chat';  // 简化为固定值
+    status?: 'pending' | 'accepted' | 'rejected';
+    rejectionReason?: string;
+    triggeredBy?: string;
 }
-
-// export interface ChatSession {
-//     id: string;
-//     cardIds: string[];  // 关联的卡片 ID
-//     messages: ChatMessage[];
-//     mode: FunctionMode;
-//     createdAt: number;
-// }
 
 export interface ChatArchive {
     id: string;
-    title: string;  // 自动从首条消息生成
+    title: string;
     messages: ChatMessage[];
-    selectedCards: string[];  // 关联的卡片
+    selectedCards: string[];
     createdAt: number;
     archivedAt: number;
 }

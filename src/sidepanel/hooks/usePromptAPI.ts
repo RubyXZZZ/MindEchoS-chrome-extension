@@ -1,6 +1,7 @@
 // hooks/usePromptAPI.ts
 import { useState, useCallback, useEffect } from 'react';
-import { PromptAI, FunctionMode } from '../services/ai/promptAI';
+import { PromptAI } from '../services/ai/promptAI';
+import { FunctionMode } from '../types/chat.types';
 import { KnowledgeCard } from '../types/card.types';
 
 interface UsePromptAPIReturn {

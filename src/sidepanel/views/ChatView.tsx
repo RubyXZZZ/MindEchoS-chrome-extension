@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { Send, Square, Lightbulb, GitCompare, Compass, PenTool, Check, X, Save, Layers } from 'lucide-react';
+import { Send, Square, BookOpen, GitCompare, GraduationCap, PenTool, Check, X, Save, Layers } from 'lucide-react';
 import { useStore } from '../store';
 import { ChatMessage } from '../types/chat.types';
 import { formatTime } from '../utils/formatters';
@@ -246,6 +246,8 @@ export const ChatView: React.FC = () => {
         lastInitCardsRef.current = '';
         clearMessages();
         setSelectedCardsForChat([]);
+
+        // 清除持久化的对话
         await chrome.storage.local.remove(STORAGE_KEYS.CURRENT_CHAT);
         console.log('[ChatView] Current chat deleted from storage');
     }, [clearMessages, setSelectedCardsForChat, destroySession]);
@@ -272,22 +274,31 @@ export const ChatView: React.FC = () => {
         const hasCards = selectedCards.length > 0;
 
         switch(action) {
-            case 'insight':
+            case 'understand':
                 prompt = hasCards
-                    ? `Please provide deep insights and analysis on the selected cards.`
-                    : `I'd like deep insights on a topic. What would you like to explore?`;
+                    ? `Please help me understand the selected cards.`
+                    : `I'd like to understand a topic. What would you like to learn about?`;
                 break;
 
             case 'compare':
-                prompt = hasCards && selectedCards.length >= 2
-                    ? `Please compare and contrast the concepts in the selected cards.`
-                    : `I need help comparing options. What would you like to compare?`;
+                if (!hasCards || selectedCards.length < 2) {
+                    alert('Compare requires 2 or more cards. Please select additional cards.');
+                    setActiveButton(null);
+                    return;
+                }
+                prompt = `Please compare and contrast the selected cards, including trade-offs and practical implications.`;
                 break;
 
-            case 'explore':
-                prompt = hasCards
-                    ? `Based on the selected cards, help me explore further with related concepts and resources.`
-                    : `I want to explore a topic comprehensively. What's your area of interest?`;
+            case 'quiz':
+                if (!hasCards) {
+                    alert('Quiz requires at least 1 card. Please select cards first.');
+                    setActiveButton(null);
+                    return;
+                }
+                const suggestedQuestions = Math.min(selectedCards.length * 3, 10);
+                const numQuestions = window.prompt(`How many questions would you like? (Suggested: ${suggestedQuestions} based on ${selectedCards.length} card${selectedCards.length > 1 ? 's' : ''})`) || suggestedQuestions.toString();
+
+                prompt = `Generate ${numQuestions} multiple-choice questions to test understanding of the selected cards.`;
                 break;
         }
 
@@ -309,7 +320,10 @@ export const ChatView: React.FC = () => {
                 timestamp: Date.now(),
                 mode: 'chat',
                 status: 'pending',
-                triggeredBy: action.charAt(0).toUpperCase() + action.slice(1)
+                triggeredBy: action === 'understand' ? 'Understand' :
+                    action === 'compare' ? 'Compare' :
+                        action === 'quiz' ? 'Quiz' :
+                            action.charAt(0).toUpperCase() + action.slice(1)
             } as ChatMessage);
 
             abortController.current = new AbortController();
@@ -356,8 +370,7 @@ export const ChatView: React.FC = () => {
         const taskLabels: Record<string, string> = {
             summary: 'Summary',
             outline: 'Outline',
-            memo: 'Memo',
-            email: 'Email'
+            draft: 'Report Draft'
         };
 
         const taskConfig = WRITING_TASKS[taskType as WritingTaskType];
@@ -666,7 +679,7 @@ export const ChatView: React.FC = () => {
 
                             <div className="bg-amber-50/70 rounded-lg p-3 mb-4 border border-amber-200">
                                 <p className="text-xs text-gray-700">
-                                    <span className="font-medium">💡 Pro tip:</span> Select cards above for context-aware responses.
+                                    <span className="font-medium">Tip:</span> Select cards above for context-aware responses.
                                     {selectedCards.length === 0 ? (
                                         <span className="text-emerald-600"> No cards selected yet.</span>
                                     ) : (
@@ -677,33 +690,33 @@ export const ChatView: React.FC = () => {
 
                             <div className="space-y-3 text-sm">
                                 <div className="flex items-start gap-3">
-                                    <div className="w-6 h-6 rounded-lg bg-amber-100 flex items-center justify-center flex-shrink-0 mt-0.5">
-                                        <Lightbulb className="w-3.5 h-3.5 text-amber-600" />
-                                    </div>
-                                    <div>
-                                        <span className="font-medium text-gray-800">Insight</span>
-                                        <p className="text-xs text-gray-600 mt-0.5">Deep analysis and structured understanding</p>
-                                    </div>
-                                </div>
-
-                                <div className="flex items-start gap-3">
                                     <div className="w-6 h-6 rounded-lg bg-blue-100 flex items-center justify-center flex-shrink-0 mt-0.5">
-                                        <GitCompare className="w-3.5 h-3.5 text-blue-600" />
+                                        <BookOpen className="w-3.5 h-3.5 text-blue-600" />
                                     </div>
                                     <div>
-                                        <span className="font-medium text-gray-800">Compare</span>
-                                        <span className="text-xs text-blue-600 ml-1">(2+ cards)</span>
-                                        <p className="text-xs text-gray-600 mt-0.5">Contrast ideas and weigh pros & cons</p>
+                                        <span className="font-medium text-gray-800">Understand</span>
+                                        <p className="text-xs text-gray-600 mt-0.5">Explain concepts and clarify ideas</p>
                                     </div>
                                 </div>
 
                                 <div className="flex items-start gap-3">
                                     <div className="w-6 h-6 rounded-lg bg-purple-100 flex items-center justify-center flex-shrink-0 mt-0.5">
-                                        <Compass className="w-3.5 h-3.5 text-purple-600" />
+                                        <GitCompare className="w-3.5 h-3.5 text-purple-600" />
                                     </div>
                                     <div>
-                                        <span className="font-medium text-gray-800">Explore</span>
-                                        <p className="text-xs text-gray-600 mt-0.5">Discover connections and resources</p>
+                                        <span className="font-medium text-gray-800">Compare</span>
+                                        <span className="text-xs text-purple-600 ml-1">(2+ cards)</span>
+                                        <p className="text-xs text-gray-600 mt-0.5">Contrast options and weigh trade-offs</p>
+                                    </div>
+                                </div>
+
+                                <div className="flex items-start gap-3">
+                                    <div className="w-6 h-6 rounded-lg bg-amber-100 flex items-center justify-center flex-shrink-0 mt-0.5">
+                                        <GraduationCap className="w-3.5 h-3.5 text-amber-600" />
+                                    </div>
+                                    <div>
+                                        <span className="font-medium text-gray-800">Quiz</span>
+                                        <p className="text-xs text-gray-600 mt-0.5">Test your knowledge with questions</p>
                                     </div>
                                 </div>
 
@@ -713,14 +726,14 @@ export const ChatView: React.FC = () => {
                                     </div>
                                     <div>
                                         <span className="font-medium text-gray-800">Write</span>
-                                        <p className="text-xs text-gray-600 mt-0.5">Generate summaries, outlines, memos, emails</p>
+                                        <p className="text-xs text-gray-600 mt-0.5">Generate summaries, outlines, and drafts</p>
                                     </div>
                                 </div>
                             </div>
 
                             <div className="mt-4 pt-4 border-t border-emerald-200/50">
                                 <p className="text-xs text-gray-600">
-                                    💬 <span className="font-medium">Ask anything</span> - Type your question below
+                                    <span className="font-medium">Ask anything</span> - Type your question below
                                 </p>
                             </div>
                         </div>
@@ -755,7 +768,7 @@ export const ChatView: React.FC = () => {
                             <span className="text-base">📝</span>
                             <div>
                                 <div className="text-sm font-medium text-gray-900">Summary</div>
-                                <div className="text-xs text-gray-500">Concise overview</div>
+                                <div className="text-xs text-gray-500">Executive summary</div>
                             </div>
                         </button>
                         <button
@@ -765,27 +778,17 @@ export const ChatView: React.FC = () => {
                             <span className="text-base">📋</span>
                             <div>
                                 <div className="text-sm font-medium text-gray-900">Outline</div>
-                                <div className="text-xs text-gray-500">Structured framework</div>
+                                <div className="text-xs text-gray-500">Structural framework</div>
                             </div>
                         </button>
                         <button
-                            onClick={() => handleWriteTask('memo')}
+                            onClick={() => handleWriteTask('draft')}
                             className="w-full px-3 py-2 text-left hover:bg-emerald-50 transition-colors flex items-center gap-2"
                         >
                             <span className="text-base">📄</span>
                             <div>
-                                <div className="text-sm font-medium text-gray-900">Memo</div>
-                                <div className="text-xs text-gray-500">Brief update</div>
-                            </div>
-                        </button>
-                        <button
-                            onClick={() => handleWriteTask('email')}
-                            className="w-full px-3 py-2 text-left hover:bg-emerald-50 transition-colors flex items-center gap-2"
-                        >
-                            <span className="text-base">✉️</span>
-                            <div>
-                                <div className="text-sm font-medium text-gray-900">Email</div>
-                                <div className="text-xs text-gray-500">Professional draft</div>
+                                <div className="text-sm font-medium text-gray-900">Report Draft</div>
+                                <div className="text-xs text-gray-500">Initial version</div>
                             </div>
                         </button>
                     </div>
@@ -793,18 +796,18 @@ export const ChatView: React.FC = () => {
 
                 <div className="flex gap-2 justify-center">
                     <button
-                        onClick={() => handleQuickAction('insight')}
+                        onClick={() => handleQuickAction('understand')}
                         disabled={isGenerating || isInitializing || !sessionReady}
                         className={`px-2.5 py-1.5 rounded-lg shadow-lg border transition-all disabled:opacity-60 flex items-center gap-1.5 group ${
-                            activeButton === 'insight'
+                            activeButton === 'understand'
                                 ? 'bg-emerald-500 text-white border-emerald-600 shadow-xl'
                                 : 'bg-white hover:bg-emerald-500 hover:text-white border-gray-200 hover:border-emerald-600'
                         }`}
                     >
-                        <Lightbulb className={`w-3.5 h-3.5 ${
-                            activeButton === 'insight' ? 'text-white' : 'text-amber-500 group-hover:text-white'
+                        <BookOpen className={`w-3.5 h-3.5 ${
+                            activeButton === 'understand' ? 'text-white' : 'text-blue-500 group-hover:text-white'
                         }`} />
-                        <span className="text-xs font-medium">Insight</span>
+                        <span className="text-xs font-medium">Understand</span>
                     </button>
 
                     <button
@@ -817,24 +820,24 @@ export const ChatView: React.FC = () => {
                         }`}
                     >
                         <GitCompare className={`w-3.5 h-3.5 ${
-                            activeButton === 'compare' ? 'text-white' : 'text-blue-500 group-hover:text-white'
+                            activeButton === 'compare' ? 'text-white' : 'text-purple-500 group-hover:text-white'
                         }`} />
                         <span className="text-xs font-medium">Compare</span>
                     </button>
 
                     <button
-                        onClick={() => handleQuickAction('explore')}
+                        onClick={() => handleQuickAction('quiz')}
                         disabled={isGenerating || isInitializing || !sessionReady}
                         className={`px-2.5 py-1.5 rounded-lg shadow-lg border transition-all disabled:opacity-60 flex items-center gap-1.5 group ${
-                            activeButton === 'explore'
+                            activeButton === 'quiz'
                                 ? 'bg-emerald-500 text-white border-emerald-600 shadow-xl'
                                 : 'bg-white hover:bg-emerald-500 hover:text-white border-gray-200 hover:border-emerald-600'
                         }`}
                     >
-                        <Compass className={`w-3.5 h-3.5 ${
-                            activeButton === 'explore' ? 'text-white' : 'text-purple-500 group-hover:text-white'
+                        <GraduationCap className={`w-3.5 h-3.5 ${
+                            activeButton === 'quiz' ? 'text-white' : 'text-amber-500 group-hover:text-white'
                         }`} />
-                        <span className="text-xs font-medium">Explore</span>
+                        <span className="text-xs font-medium">Quiz</span>
                     </button>
 
                     <button
