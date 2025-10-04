@@ -7,7 +7,7 @@ export interface ChatMessage {
     role: 'user' | 'assistant';
     content: string;
     timestamp: number;
-    mode: 'chat';  // 简化为固定值
+    mode: 'chat';
     status?: 'pending' | 'accepted' | 'rejected';
     rejectionReason?: string;
     triggeredBy?: string;

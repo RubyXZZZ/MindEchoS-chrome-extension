@@ -8,6 +8,7 @@ import { ChatMarkdownRenderer } from '../components/chat/ChatMarkdownRenderer';
 import { WRITING_TASKS, WritingTaskType } from '../types/writing.types';
 import { ConfirmDialog } from '../components/modals/ConfirmDialog';
 import { STORAGE_KEYS } from '../utils/constants';
+import { FUNCTION_PROMPTS } from '../services/ai/promptAI';
 
 const MessageBubble = React.memo<{
     msg: ChatMessage;
@@ -160,25 +161,22 @@ export const ChatView: React.FC = () => {
             }
 
             const currentCardsKey = JSON.stringify(selectedCardsForChat.sort());
-
             if (lastInitCardsRef.current === currentCardsKey && sessionReady) {
-                console.log('[ChatView] Session already ready, skipping init');
+                console.log('[ChatView] Session already ready');
                 return;
             }
 
             setIsInitializing(true);
             setSessionReady(false);
-            console.log('[ChatView] Initializing session with', selectedCards.length, 'cards...');
 
             try {
-                const success = await initializeSession('chat', selectedCards);
+                const success = await initializeSession(selectedCards);  // 只有 1 个参数
                 if (success) {
                     lastInitCardsRef.current = currentCardsKey;
                     setSessionReady(true);
                     console.log('[ChatView] ✓ Session ready');
                 } else {
                     setSessionReady(false);
-                    console.error('[ChatView] ✗ Session init failed');
                 }
             } catch (error) {
                 console.error('[ChatView] Init error:', error);
@@ -270,43 +268,48 @@ export const ChatView: React.FC = () => {
 
         setActiveButton(action);
 
-        let prompt = '';
-        const hasCards = selectedCards.length > 0;
+        // 用户界面显示的消息
+        let displayMessage = '';
+        // 实际发送给 AI 的详细 prompt
+        let aiPrompt = '';
 
         switch(action) {
             case 'understand':
-                prompt = hasCards
-                    ? `Please help me understand the selected cards.`
-                    : `I'd like to understand a topic. What would you like to learn about?`;
+                displayMessage = selectedCards.length === 1
+                    ? `Understand this card`
+                    : `Understand these ${selectedCards.length} cards`;
+                aiPrompt = FUNCTION_PROMPTS.understand.getPrompt(selectedCards.length);
                 break;
 
             case 'compare':
-                if (!hasCards || selectedCards.length < 2) {
+                if (!selectedCards || selectedCards.length < 2) {
                     alert('Compare requires 2 or more cards. Please select additional cards.');
                     setActiveButton(null);
                     return;
                 }
-                prompt = `Please compare and contrast the selected cards, including trade-offs and practical implications.`;
+                displayMessage = `Compare ${selectedCards.length} cards`;
+                aiPrompt = FUNCTION_PROMPTS.compare.getPrompt(selectedCards.length);
                 break;
 
             case 'quiz':
-                if (!hasCards) {
+                if (!selectedCards || selectedCards.length === 0) {
                     alert('Quiz requires at least 1 card. Please select cards first.');
                     setActiveButton(null);
                     return;
                 }
-                const suggestedQuestions = Math.min(selectedCards.length * 3, 10);
-                const numQuestions = window.prompt(`How many questions would you like? (Suggested: ${suggestedQuestions} based on ${selectedCards.length} card${selectedCards.length > 1 ? 's' : ''})`) || suggestedQuestions.toString();
-
-                prompt = `Generate ${numQuestions} multiple-choice questions to test understanding of the selected cards.`;
+                displayMessage = selectedCards.length === 1
+                    ? `Generate quiz from this card`
+                    : `Generate quiz from ${selectedCards.length} cards`;
+                aiPrompt = FUNCTION_PROMPTS.quiz.getPrompt(selectedCards.length);
                 break;
         }
 
-        if (prompt) {
+        if (displayMessage && aiPrompt) {
+            // 添加用户消息（显示简化版）
             const userMsg: ChatMessage = {
                 id: Date.now().toString(),
                 role: 'user',
-                content: prompt,
+                content: displayMessage,
                 timestamp: Date.now(),
                 mode: 'chat'
             };
@@ -330,8 +333,9 @@ export const ChatView: React.FC = () => {
 
             try {
                 let finalContent = '';
+                // 发送详细 prompt 给 AI
                 const result = await sendMessage(
-                    prompt,
+                    aiPrompt,
                     (text) => {
                         if (text) {
                             finalContent = text;

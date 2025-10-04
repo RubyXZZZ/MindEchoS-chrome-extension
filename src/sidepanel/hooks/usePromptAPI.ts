@@ -1,14 +1,13 @@
 // hooks/usePromptAPI.ts
 import { useState, useCallback, useEffect } from 'react';
 import { PromptAI } from '../services/ai/promptAI';
-import { FunctionMode } from '../types/chat.types';
 import { KnowledgeCard } from '../types/card.types';
 
 interface UsePromptAPIReturn {
     isAvailable: boolean;
     isChecking: boolean;
     isGenerating: boolean;
-    initializeSession: (mode: FunctionMode, selectedCards: KnowledgeCard[]) => Promise<boolean>;
+    initializeSession: (selectedCards: KnowledgeCard[]) => Promise<boolean>;
     sendMessage: (
         message: string,
         onChunk: (text: string) => void,
@@ -28,7 +27,6 @@ export function usePromptAPI(): UsePromptAPIReturn {
     const [isChecking, setIsChecking] = useState(true);
     const [isGenerating, setIsGenerating] = useState(false);
 
-    // 检查可用性
     useEffect(() => {
         const checkAvailability = async () => {
             setIsChecking(true);
@@ -48,18 +46,12 @@ export function usePromptAPI(): UsePromptAPIReturn {
         checkAvailability();
     }, []);
 
-    /**
-     * 初始化对话 session
-     */
     const initializeSession = useCallback(async (
-        mode: FunctionMode,
         selectedCards: KnowledgeCard[]
     ): Promise<boolean> => {
         try {
             const ai = PromptAI.getInstance();
 
-            // 转换 KnowledgeCard 为 promptAI 需要的格式
-            // 只提取 title 和 content 字段
             const simplifiedCards = Array.isArray(selectedCards)
                 ? selectedCards.map(card => ({
                     title: card.title || 'Untitled',
@@ -68,10 +60,10 @@ export function usePromptAPI(): UsePromptAPIReturn {
                 }))
                 : [];
 
-            console.log('[usePromptAPI] Initializing session with mode:', mode);
+            console.log('[usePromptAPI] Initializing session');
             console.log('[usePromptAPI] Cards count:', simplifiedCards.length);
 
-            const success = await ai.createSession(mode, simplifiedCards);
+            const success = await ai.createSession(simplifiedCards);
             return success;
         } catch (error) {
             console.error('[usePromptAPI] Init session failed:', error);
@@ -79,9 +71,6 @@ export function usePromptAPI(): UsePromptAPIReturn {
         }
     }, []);
 
-    /**
-     * 发送消息（流式）
-     */
     const sendMessage = useCallback(async (
         message: string,
         onChunk: (text: string) => void,
@@ -108,9 +97,6 @@ export function usePromptAPI(): UsePromptAPIReturn {
         }
     }, [isAvailable]);
 
-    /**
-     * 生成改进方案（用户拒绝后）
-     */
     const generateImprovement = useCallback(async (
         originalResponse: string,
         rejectionReason: string,
@@ -124,19 +110,11 @@ export function usePromptAPI(): UsePromptAPIReturn {
 Your previous response was:
 "${originalResponse}"
 
-Please provide an improved response that addresses their concerns. Focus on:
-1. Addressing the specific issues mentioned in their feedback
-2. Maintaining the same intent but with better execution
-3. Being more helpful and accurate
-
-Improved response:`;
+Please provide an improved response that addresses their concerns.`;
 
         return await sendMessage(improvePrompt, onChunk, signal);
     }, [sendMessage]);
 
-    /**
-     * 销毁 session
-     */
     const destroySession = useCallback(() => {
         const ai = PromptAI.getInstance();
         ai.destroySession();

@@ -1,8 +1,5 @@
 // services/ai/promptAI.ts
 // Chrome Prompt API 实现
-// 基于官方文档：https://developer.chrome.com/docs/ai/prompt-api
-import { FunctionMode } from '../../types/chat.types';
-
 
 interface PromptSession {
     prompt(input: string, options?: { signal?: AbortSignal }): Promise<string>;
@@ -32,11 +29,90 @@ declare global {
     }
 }
 
+// 集中管理所有功能的 Prompts
+export const FUNCTION_PROMPTS = {
+    understand: {
+        getPrompt: (cardCount: number) => `Help me understand the card content simply and effectively. Follow these guidelines:
+
+- Start with the main idea and explain key concepts clearly
+- Use analogies or short examples to make it easy to grasp
+- ${cardCount > 1 ? 'Show how the cards relate or differ' : 'Analyze relationships among keypoints'}
+- Keep under 250 words total`
+    },
+
+    compare: {
+        getPrompt: (cardCount: number) => `Compare the selected ${cardCount} cards systematically.
+
+1. State the primary relationship between the cards' topics.
+2. Use a comparison table or bullets showing key distinctions.
+3. Highlight pros/cons and when to use each option.
+4. Be concise. Keep under 300 words.`
+    },
+
+    quiz: {
+        getPrompt: (cardCount: number) => `Generate ${Math.min(2 + cardCount, 5)} multiple-choice questions to test understanding of the card content.
+
+Requirements:
+- Test comprehension, not memorization
+- Each question has EXACTLY 3 options (A, B, C) - never use D
+- Clear question stems
+
+Format (follow strictly):
+Q1: [question]
+A) [option]
+B) [option]
+C) [option]
+
+Q2: [question]
+A) [option]
+B) [option]
+C) [option]
+
+-------
+Answers:
+Q1: B (brief one-sentence explanation)
+Q2: A (brief one-sentence explanation)
+
+All answers must be provided at the end after "-------", not after each question.`
+    },
+
+    write: {
+        summary: `Create a summary based on the selected cards.
+
+Requirements:
+1. Main point (1 sentence) + Key findings (3-5 bullets) + Conclusion/takeaway
+2. 150-200 words maximum
+3. Opening thesis + bullet points + bold critical terms
+4. Focus on what decision-makers need to know
+
+Output a concise, actionable summary.`,
+
+        outline: `Create a structural outline based on the selected cards.
+
+Requirements:
+1. Main Topics: Identify the main topics and use them as top-level bullet points.
+2. Sub-points: List supporting details or examples as nested bullet points under the relevant topic.
+3. Use Keywords: Use short phrases and keywords, not full sentences.
+
+Output a skeleton framework ready to be filled in.`,
+
+        draft: `Generate a report draft based on the selected cards.
+
+Requirements:
+1. About Structure: Introduction (2-3 sentences) + Main Body (2-3 sections with headers) + Conclusion (2-3 sentences)
+2. About Content: Combine the key ideas from the cards and context into logical and smooth paragraphs.Maintain a neutral tone. Avoid repetition or filler.
+3. About Format: Use ## headers, 2-3 sentences per paragraph, bullets for lists
+4. About Length: 350 words maximum.
+
+
+Output an initial version requiring editing and refinement.`
+    }
+};
+
 export class PromptAI {
     private static instance: PromptAI | null = null;
     private session: PromptSession | null = null;
-    private currentMode: FunctionMode | null = null;
-    private currentCards: Array<{ title: string; content: string }> = [];
+    private currentCards: Array<{ title: string; content: string; url?: string }> = [];
 
     private constructor() {}
 
@@ -47,9 +123,6 @@ export class PromptAI {
         return PromptAI.instance;
     }
 
-    /**
-     * 检查 Prompt API 可用性
-     */
     async checkAvailability(): Promise<'readily' | 'after-download' | 'no'> {
         try {
             if (!('LanguageModel' in self)) {
@@ -66,12 +139,8 @@ export class PromptAI {
         }
     }
 
-    /**
-     * 创建对话 session
-     */
     async createSession(
-        mode: FunctionMode = 'chat',
-        cards: Array<{ title: string; content: string }> = []
+        cards: Array<{ title: string; content: string; url?: string }> = []
     ): Promise<boolean> {
         try {
             const availability = await this.checkAvailability();
@@ -81,27 +150,20 @@ export class PromptAI {
 
             const validCards = Array.isArray(cards) ? cards : [];
 
-            // 检查是否需要重新创建session
-            if (this.session && this.currentMode === mode &&
-                JSON.stringify(this.currentCards) === JSON.stringify(validCards)) {
+            if (this.session && JSON.stringify(this.currentCards) === JSON.stringify(validCards)) {
                 console.log('[PromptAI] Reusing existing session');
                 return true;
             }
 
-            // 销毁旧 session
             if (this.session) {
                 this.session.destroy();
                 this.session = null;
             }
 
-            // 更新当前状态
-            this.currentMode = mode;
             this.currentCards = validCards;
 
-            // 构建系统提示
-            const systemPrompt = this.getSystemPrompt(mode, validCards);
+            const systemPrompt = this.getSystemPrompt(validCards);
 
-            // 创建新 session
             this.session = await LanguageModel.create({
                 temperature: 0.8,
                 topK: 40,
@@ -115,7 +177,7 @@ export class PromptAI {
                 }
             });
 
-            console.log('[PromptAI] Session created for mode:', mode);
+            console.log('[PromptAI] Session created with', validCards.length, 'cards');
             if (this.session?.inputQuota) {
                 console.log('[PromptAI] Token quota:', this.session.inputQuota);
             }
@@ -127,133 +189,27 @@ export class PromptAI {
         }
     }
 
-    /**
-     * 根据模式和卡片生成系统提示
-     */
-    private getSystemPrompt(mode: FunctionMode, cards: Array<{ title: string; content: string }>): string {
+    private getSystemPrompt(cards: Array<{ title: string; content: string; url?: string }>): string {
         const validCards = Array.isArray(cards) ? cards : [];
 
-        // 构建卡片上下文
         const cardContext = validCards.length > 0
             ? `\n\n## Knowledge Cards Context:\n${validCards.map((c, index) =>
-                `**Card ${index + 1}: ${c.title}**\n${c.content}`
-            ).join('\n\n')}\n\nReference these cards when answering.`
+                `**Card ${index + 1}: ${c.title}**\n${c.content}${c.url ? `\nSource: ${c.url}` : ''}`
+            ).join('\n\n')}\n\nUse these cards as the knowledge base for your response.`
             : '';
 
-        // 通用格式要求（适配窄界面）
-        const formatGuidelines = `
-## Response Format (Chrome Extension - Narrow Interface):
-- Use **short paragraphs** (2-3 sentences max)
-- Use **bullet points** for lists
-- Use **simple markdown tables** (2-3 columns max) when comparing data
-- Use **bold** for key terms
-- Use **headers (##)** to organize sections
-- Avoid long horizontal lines
-- Keep code blocks narrow`;
+        const systemPrompt = `You are an intelligent assistant helping users work with their knowledge cards.
 
-        const prompts = {
-            chat: `You are an intelligent knowledge assistant.
+Format Rules (Narrow Chrome Extension):
+- Paragraphs: 2-3 sentences maximum
+- Lists: Use bullet points
+- Tables: If >3 columns needed, transpose (swap rows/columns) so columns < rows
+- Style: Direct and concise, no filler
+${cardContext}`;
 
-${formatGuidelines}
-
-## Your Role:
-Answer questions clearly and concisely. Adapt your depth based on the question complexity.
-${cardContext}`,
-
-            understand: `You are a **Concept Explainer** who clarifies ideas and reveals relationships.
-
-${formatGuidelines}
-
-## Your Mission:
-Help users understand by providing:
-- **Explanation** - Define concepts in plain, simple language
-- **Connections** - Show how ideas relate and build on each other
-- **Differences** - Clarify distinctions between similar or related concepts
-- **Examples** - Use analogies and real-world cases
-- **Context** - Explain why this matters
-
-## Approach:
-- Start with core definitions
-- Explain relationships between concepts
-- Point out key differences when multiple ideas are present
-- Use concrete examples and analogies
-- Build from simple to complex
-${cardContext}`,
-
-            compare: `You are a **Comparison Analyst** examining options and trade-offs.
-
-${formatGuidelines}
-
-## Your Mission:
-Provide systematic comparison showing:
-- **Similarities** - What they have in common
-- **Differences** - How they diverge
-- **Pros & Cons** - Advantages and disadvantages
-- **Trade-offs** - What you gain vs. what you sacrifice
-- **Use Cases** - When to choose each option
-- **Decision Factors** - Key criteria for selection
-
-## Format:
-- Use comparison tables (2-3 columns max)
-- Side-by-side bullet points
-- Highlight critical trade-offs
-- Be objective and evidence-based
-${cardContext}`,
-
-            quiz: `You are a **Quiz Generator** creating effective learning assessments.
-
-${formatGuidelines}
-
-## Your Mission:
-Generate multiple-choice questions that:
-- **Test Understanding** - Not just recall
-- **Clear Questions** - Unambiguous stems
-- **Plausible Options** - Distractors that test knowledge
-- **One Correct Answer** - Clearly identifiable
-- **Include Explanations** - Why the answer is correct
-
-## Format:
-Q1: [Question testing comprehension]
-A) [Option]
-B) [Option]  
-C) [Option]
-D) [Option]
-Correct: B
-Explanation: [Brief reason]
-
-Focus on application and understanding, not trivial facts.
-${cardContext}`,
-
-            write: `You are a **Draft Generator** creating frameworks and initial versions.
-
-${formatGuidelines}
-
-## Your Mission:
-Create structured drafts including:
-- **Clear Framework** - Organized structure
-- **Key Points** - Essential content
-- **Initial Draft** - Rough version for refinement
-- **Actionable Output** - Ready to build upon
-
-## Output Types:
-- Executive summaries (concise overviews)
-- Structural outlines (frameworks only)
-- Report drafts (initial versions needing editing)
-
-## Style:
-- Prioritize structure over polish
-- Include content placeholders where needed
-- Focus on completeness, not perfection
-- Create starting points for human refinement
-${cardContext}`
-        };
-
-        return prompts[mode] || prompts.chat;
+        return systemPrompt;
     }
 
-    /**
-     * 发送消息（流式）
-     */
     async sendMessageStreaming(
         message: string,
         onChunk: (chunk: string) => void,
@@ -264,47 +220,31 @@ ${cardContext}`
         }
 
         try {
-            // 检查token使用情况
             if (this.session.inputUsage && this.session.inputQuota) {
                 const usage = (this.session.inputUsage / this.session.inputQuota) * 100;
-                if (usage > 80) {
-                    console.warn(`[PromptAI] Token usage high: ${usage.toFixed(1)}%`);
-                    if (usage > 95) {
-                        console.log('[PromptAI] Rebuilding session due to high token usage');
-                        await this.createSession(this.currentMode || 'chat', this.currentCards);
-                    }
+                if (usage > 95) {
+                    await this.createSession(this.currentCards);
                 }
             }
 
             const stream = this.session.promptStreaming(message, { signal });
-            let accumulatedText = '';  // 累积文本
-
-            console.log('[PromptAI] Starting streaming for message:', message.substring(0, 100));
+            let accumulatedText = '';
 
             for await (const chunk of stream) {
-                if (signal?.aborted) {
-                    console.log('[PromptAI] Generation aborted by user');
-                    break;
-                }
-
-                // 累积每个 token
+                if (signal?.aborted) break;
                 if (chunk && chunk.length > 0) {
                     accumulatedText += chunk;
-                    onChunk(accumulatedText);  // 传递累积的完整文本
+                    onChunk(accumulatedText);
                 }
             }
 
-            console.log('[PromptAI] Streaming completed, final text length:', accumulatedText.length);
-
             if (!accumulatedText) {
-                console.error('[PromptAI] No content generated from stream');
                 throw new Error('No content generated');
             }
 
             return accumulatedText;
         } catch (error: any) {
             if (error.name === 'AbortError') {
-                console.log('[PromptAI] Generation aborted');
                 throw error;
             }
             console.error('[PromptAI] Streaming error:', error);
@@ -312,32 +252,23 @@ ${cardContext}`
         }
     }
 
-    /**
-     * 发送消息（批量）
-     */
     async sendMessage(message: string, signal?: AbortSignal): Promise<string> {
         if (!this.session) {
-            throw new Error('Session not created. Call createSession first.');
+            throw new Error('Session not created.');
         }
 
         try {
-            const result = await this.session.prompt(message, { signal });
-            return result;
+            return await this.session.prompt(message, { signal });
         } catch (error: any) {
             if (error.name === 'AbortError') {
-                console.log('[PromptAI] Generation aborted');
                 throw error;
             }
-            console.error('[PromptAI] Prompt error:', error);
             throw error;
         }
     }
 
-    /**
-     * 获取当前session的token使用情况
-     */
     getTokenUsage(): { used: number; quota: number; percentage: number } | null {
-        if (!this.session || !this.session.inputUsage || !this.session.inputQuota) {
+        if (!this.session?.inputUsage || !this.session?.inputQuota) {
             return null;
         }
 
@@ -348,49 +279,32 @@ ${cardContext}`
         };
     }
 
-    /**
-     * 克隆当前session
-     */
     async cloneSession(): Promise<boolean> {
-        if (!this.session) {
-            console.error('[PromptAI] No session to clone');
-            return false;
-        }
+        if (!this.session) return false;
 
         try {
             const clonedSession = await this.session.clone();
             this.session.destroy();
             this.session = clonedSession;
-            console.log('[PromptAI] Session cloned successfully');
             return true;
         } catch (error) {
-            console.error('[PromptAI] Failed to clone session:', error);
             return false;
         }
     }
 
-    /**
-     * 销毁 session
-     */
     destroySession() {
         if (this.session) {
             this.session.destroy();
             this.session = null;
-            this.currentMode = null;
             this.currentCards = [];
             console.log('[PromptAI] Session destroyed');
         }
     }
 
-    /**
-     * 获取API参数限制
-     */
     async getParams(): Promise<any> {
         try {
             if ('LanguageModel' in self && LanguageModel.params) {
-                const params = await LanguageModel.params();
-                console.log('[PromptAI] API Parameters:', params);
-                return params;
+                return await LanguageModel.params();
             }
         } catch (error) {
             console.error('[PromptAI] Failed to get params:', error);
