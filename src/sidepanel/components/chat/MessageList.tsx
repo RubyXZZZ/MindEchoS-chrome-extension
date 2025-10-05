@@ -101,13 +101,24 @@ export const MessageList: React.FC<MessageListProps> = ({
             onScroll={onScroll}
             className="flex-1 overflow-y-auto px-3 pt-2 pb-4"
         >
-            {selectedCards.length === 0 && (
-                <div className="px-3 py-1 mb-2 bg-amber-50 border border-amber-200 rounded-lg">
-                    <p className="text-xs text-amber-700 text-center">
-                        💡 Select cards above for better context
+            {/* Selected Cards Info Banner */}
+            <div className={`px-3 py-2 mb-2 rounded-lg border ${
+                selectedCards.length > 0
+                    ? 'bg-emerald-50 border-emerald-200'
+                    : 'bg-amber-50 border-amber-200'
+            }`}>
+                {selectedCards.length > 0 ? (
+                    <p className="text-xs text-emerald-700 text-center">
+                        <span className="font-medium">
+                            {selectedCards.length} Card{selectedCards.length > 1 ? 's' : ''} Selected
+                        </span> - AI will use this context for responses
                     </p>
-                </div>
-            )}
+                ) : (
+                    <p className="text-xs text-amber-700 text-center">
+                        Select cards above for better context
+                    </p>
+                )}
+            </div>
 
             {messages.length === 0 && sessionReady && (
                 <div className="max-w-2xl mx-auto mt-8 mb-8">
