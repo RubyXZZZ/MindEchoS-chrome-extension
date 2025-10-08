@@ -221,18 +221,18 @@ export const CardsView: React.FC<CardsViewProps> = ({
 
     return (
         <div className="flex-1 flex flex-col h-full">
-            <div className="flex-shrink-0 px-4 py-3 bg-white/80 backdrop-blur-sm border-b border-gray-100 z-10">
-                <div className="relative mb-3">
+            <div className="flex-shrink-0 px-4 py-2 bg-white/80 backdrop-blur-sm border-b border-gray-100 z-10">
+                <div className="relative mb-2">
                     <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
                     <input
                         type="text"
                         placeholder="Search cards..."
                         value={searchQuery}
                         onChange={(e) => setSearchQuery(e.target.value)}
-                        className="w-full pl-9 pr-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/30"
+                        className="w-full pl-9 pr-3 py-1.5 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/30"
                     />
                 </div>
-                <div className="flex gap-2 flex-wrap items-center">
+                <div className="flex gap-1.5 flex-wrap items-center">
                     {filterOptions.map(filter => (
                         <div key={filter} className="relative group">
                             <button
@@ -309,7 +309,7 @@ export const CardsView: React.FC<CardsViewProps> = ({
 
             <div className="flex-1 overflow-y-auto overflow-x-hidden bg-gradient-to-b from-transparent to-white/30 relative">
                 {filteredCards.length > 0 ? (
-                    <div className="relative px-2 py-4" style={{ minHeight: `${containerHeight}px` }}>
+                    <div className="relative px-2 pt-1 pb-4" style={{ minHeight: `${containerHeight}px` }}>
                         {filteredCards.map((card, index) => {
                             const isExpanded = expandedCard === card.id;
                             const topPosition = cardPositions[card.id] ?? 0;
@@ -352,7 +352,7 @@ export const CardsView: React.FC<CardsViewProps> = ({
                         title="Select cards for AI chat"
                     >
                         <AIRobotIcon size={48} />
-                        <span className="absolute bottom-14 left-1/2 transform -translate-x-1/2 bg-gray-900 text-white text-xs px-2 py-1 rounded whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
+                        <span className="absolute bottom-2 left-14 bg-gray-900 text-white text-xs px-2 py-1 rounded whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
                             Select cards for AI chat
                         </span>
                     </button>
@@ -382,10 +382,10 @@ export const CardsView: React.FC<CardsViewProps> = ({
                 {!aiSelectionMode && (
                     <button
                         onClick={() => setShowAddModal(true)}
-                        className="fixed bottom-4 right-4 w-12 h-12 bg-emerald-500 text-white rounded-full shadow-lg hover:bg-emerald-600 transition-all flex items-center justify-center z-20"
+                        className="fixed bottom-4 right-4 w-11 h-11 bg-emerald-500 text-white rounded-full shadow-lg hover:bg-emerald-600 hover:scale-105 transition-all flex items-center justify-center z-20"
                         title="Add new card"
                     >
-                        <Plus className="w-5 h-5" />
+                        <Plus className="w-6 h-6" />
                     </button>
                 )}
             </div>

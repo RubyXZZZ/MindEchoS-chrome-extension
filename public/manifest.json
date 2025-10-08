@@ -2,7 +2,12 @@
   "manifest_version": 3,
   "name": "MindEchoS",
   "version": "1.0.0",
-  "description": "Simple knowledge management with AI",
+  "description": "AI-powered knowledge management for capturing and organizing web content",
+  "icons": {
+    "16": "icon-16.png",
+    "48": "icon-48.png",
+    "128": "icon-128.png"
+  },
   "permissions": [
     "storage",
     "activeTab",
@@ -10,21 +15,19 @@
     "contextMenus",
     "scripting"
   ],
-  "host_permissions": [
-    "http://*/*",
-    "https://*/*"
-  ],
-
   "background": {
     "service_worker": "background.js",
     "type": "module"
   },
   "action": {
-    "default_title": "Open Knowledge Cards"
+    "default_title": "Open MindEchoS",
+    "default_icon": {
+      "16": "icon-16.png",
+      "48": "icon-48.png",
+      "128": "icon-128.png"
+    }
   },
-
   "options_page": "index.html",
-
   "side_panel": {
     "default_path": "index.html"
   },
@@ -34,17 +37,7 @@
         "default": "Ctrl+Shift+S",
         "mac": "Command+Shift+S"
       },
-      "description": "Extract selected text to a new knowledge card"
+      "description": "Extract selected text to knowledge card"
     }
-  },
-  "content_scripts": [
-    {
-      "matches": [
-        "<all_urls>"
-      ],
-      "js": [
-        "content.js"
-      ]
-    }
-  ]
+  }
 }

@@ -1,5 +1,5 @@
 import React from 'react';
-import { Layers, Settings2, X } from 'lucide-react';
+import { Settings, Settings2, X } from 'lucide-react';
 import { useStore } from '../../store';
 import { CardsManageToolbar } from '../manage/CardsManageToolbar';
 import { ChatManageToolbar } from '../manage/ChatManageToolbar';
@@ -21,7 +21,6 @@ export const NavigationBar: React.FC<NavigationBarProps> = ({
         console.log('[NavigationBar] Logo clicked, switching to settings');
         setCurrentView('settings');
 
-        // 退出管理模式
         if (currentView === 'cards') {
             onManageStateChange({
                 view: 'cards',
@@ -99,48 +98,60 @@ export const NavigationBar: React.FC<NavigationBarProps> = ({
 
     return (
         <div className="bg-white/95 backdrop-blur-sm border-b border-gray-200/50">
-            <div className="px-4 py-3">
-                <div className="flex items-center justify-between">
-                    {/* Logo - 可点击进入 Settings */}
-                    <div
-                        className="flex items-center gap-3 cursor-pointer hover:opacity-75 transition-opacity"
+            <div className="px-4 py-2">
+                <div className="flex items-center gap-3">
+                    {/* Settings Button */}
+                    <button
                         onClick={handleLogoClick}
+                        className="w-8 h-8 rounded-lg bg-gray-100 flex items-center justify-center hover:bg-gray-200 transition-colors flex-shrink-0"
                         title="Settings"
                     >
-                        <div className="w-8 h-8 rounded-lg bg-emerald-500 flex items-center justify-center">
-                            <Layers className="w-4 h-4 text-white" />
-                        </div>
-                        <h1 className="text-base font-semibold text-gray-900">知识卡片</h1>
-                    </div>
+                        <Settings className="w-5 h-5 text-gray-700" />
+                    </button>
 
-                    {/* View Switcher */}
-                    <div className="flex items-center bg-gray-100 rounded-lg p-0.5">
+                    {/* Left Spacer */}
+                    <div className="flex-1" />
+
+                    {/* View Switcher - Compact */}
+                    <div className="relative bg-gray-200 rounded-lg p-0.5 flex flex-shrink-0">
+                        {/* Sliding Green Background */}
+                        <div
+                            className="absolute top-0.5 bottom-0.5 left-0.5 w-[72px] bg-emerald-500 rounded-md shadow-md transition-all duration-300 ease-out will-change-transform"
+                            style={{
+                                transform: currentView === 'cards' ? 'translateX(0)' : 'translateX(72px)'
+                            }}
+                        />
+
+                        {/* Buttons */}
                         <button
                             onClick={() => handleViewChange('cards')}
-                            className={`px-4 py-1.5 rounded-md text-xs font-medium transition-all ${
+                            className={`relative z-10 w-[72px] py-1.5 rounded-md text-xs font-medium transition-colors duration-200 ${
                                 currentView === 'cards'
-                                    ? 'bg-white text-gray-900 shadow-sm'
-                                    : 'text-gray-600 hover:text-gray-900'
+                                    ? 'text-white'
+                                    : 'text-gray-700 hover:text-gray-900'
                             }`}
                         >
                             知识卡片
                         </button>
                         <button
                             onClick={() => handleViewChange('chat')}
-                            className={`px-4 py-1.5 rounded-md text-xs font-medium transition-all ${
+                            className={`relative z-10 w-[72px] py-1.5 rounded-md text-xs font-medium transition-colors duration-200 ${
                                 currentView === 'chat'
-                                    ? 'bg-white text-gray-900 shadow-sm'
-                                    : 'text-gray-600 hover:text-gray-900'
+                                    ? 'text-white'
+                                    : 'text-gray-700 hover:text-gray-900'
                             }`}
                         >
                             AI对话
                         </button>
                     </div>
 
+                    {/* Right Spacer */}
+                    <div className="flex-1" />
+
                     {/* Manage Button */}
                     <button
                         onClick={handleManageClick}
-                        className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-all flex items-center gap-1 ${
+                        className={`w-[72px] h-8 text-xs font-medium rounded-lg transition-all flex items-center justify-center gap-1 flex-shrink-0 ${
                             isManageMode
                                 ? 'bg-gray-800 text-white hover:bg-gray-900'
                                 : 'bg-emerald-500 text-white hover:bg-emerald-600'
