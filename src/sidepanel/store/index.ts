@@ -14,6 +14,7 @@ interface SelectionPayload {
     url: string;
     title?: string;
     needsAISummarize?: boolean;
+    needsContentSummary?: boolean;
 }
 
 interface AppState {
@@ -112,7 +113,8 @@ export const useStore = create<AppState>((set, get) => ({
                         initialSelection: {
                             text: newValue.text,
                             url: newValue.url,
-                            needsAISummarize: newValue.needsAISummarize || false
+                            needsAISummarize: newValue.needsAISummarize || false,
+                            needsContentSummary: newValue.needsContentSummary !== false  // ← 添加这行
                         },
                         showAddModal: true
                     });
@@ -134,7 +136,8 @@ export const useStore = create<AppState>((set, get) => ({
                     initialSelection: {
                         text: pendingData.text,
                         url: pendingData.url,
-                        needsAISummarize: pendingData.needsAISummarize || false
+                        needsAISummarize: pendingData.needsAISummarize || false,
+                        needsContentSummary: pendingData.needsContentSummary !== false  // ← 添加这行
                     },
                     showAddModal: true
                 });

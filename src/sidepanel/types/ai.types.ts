@@ -13,6 +13,7 @@ export interface SummarizerOptions {
     type?: 'key-points' | 'tldr' | 'teaser' | 'headline';
     format?: 'markdown' | 'plain-text';
     length?: 'short' | 'medium' | 'long';
+    outputLanguage?: 'en' | 'es' | 'ja';
     monitor?: (m: SummarizerMonitor) => void;
 }
 

@@ -7,6 +7,14 @@ import { useAISummarizer } from '../../hooks/useAISummarizer';
 import { CategorySelector } from '../layout/CategorySelector';
 import { ConfirmDialog } from '../modals/ConfirmDialog';
 
+interface SelectionPayload {
+    text: string;
+    url: string;
+    title?: string;
+    needsAISummarize?: boolean;
+    needsContentSummary?: boolean;
+}
+
 export const AddCardModal: React.FC = () => {
     const {
         showAddModal,
@@ -36,7 +44,11 @@ export const AddCardModal: React.FC = () => {
     const [extractError, setExtractError] = useState<string>('');
     const [showCloseConfirm, setShowCloseConfirm] = useState(false);
     const [showSaveConfirm, setShowSaveConfirm] = useState(false);
-    const [forceHideLoading, setForceHideLoading] = useState(false);
+    const [showTitleRequiredDialog, setShowTitleRequiredDialog] = useState(false);
+    const [isRestrictedPage, setIsRestrictedPage] = useState(false);
+
+    const [isTitleGenerating, setIsTitleGenerating] = useState(false);
+    const [isContentGenerating, setIsContentGenerating] = useState(false);
 
     const {
         summarizeTextStreaming,
@@ -63,15 +75,40 @@ export const AddCardModal: React.FC = () => {
 
     const handleConfirmClose = () => {
         setShowCloseConfirm(false);
+
+        if (abortController.current) {
+            abortController.current.abort();
+            abortController.current = null;
+        }
+
         hasProcessedAutoAI.current = false;
         setInitialSelection(null);
         chrome.storage.session.remove('pendingSelection');
+
+        setIsTitleGenerating(false);
+        setIsContentGenerating(false);
+        setExtractingSelection(false);
+        setExtractingWebpage(false);
+
         setShowAddModal(false);
     };
 
     const handleCancelClose = () => {
         setShowCloseConfirm(false);
     };
+
+    useEffect(() => {
+        if (showAddModal && !isEditing) {
+            chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+                const url = tabs[0]?.url || '';
+                const restricted = url.startsWith('chrome://') ||
+                    url.startsWith('chrome-extension://') ||
+                    url.startsWith('edge://') ||
+                    url.includes('chrome.google.com/webstore');
+                setIsRestrictedPage(restricted);
+            });
+        }
+    }, [showAddModal, isEditing]);
 
     useEffect(() => {
         const processAutoAI = async () => {
@@ -84,24 +121,33 @@ export const AddCardModal: React.FC = () => {
             }
 
             if (isAIChecking) {
-                console.log('[AddCardModal] Waiting for AI availability check...');
                 return;
             }
 
-            console.log('[AddCardModal] Auto-processing AI (STREAMING) for right-click/shortcut');
-            console.log('[AddCardModal] AI Available:', isAIAvailable);
             hasProcessedAutoAI.current = true;
             setExtractingSelection(true);
+            setIsTitleGenerating(true);
+            setIsContentGenerating(true);
 
             let initialCategory = DEFAULT_CATEGORY;
             if (selectedCategory !== ALL_CARDS_FILTER) {
                 initialCategory = selectedCategory;
             }
 
-            abortController.current = new AbortController();
-            const signal = abortController.current.signal;
+            const currentAbortController = new AbortController();
+            abortController.current = currentAbortController;
+            const signal = currentAbortController.signal;
             streamingTitle.current = '';
             streamingContent.current = '';
+
+            const needsContentSummary = (initialSelection as SelectionPayload).needsContentSummary !== false;
+
+            // Set URL immediately before AI processing
+            setFormData(prev => ({
+                ...prev,
+                category: initialCategory,
+                url: initialSelection.url || ''
+            }));
 
             try {
                 await summarizeTextStreaming(
@@ -109,29 +155,27 @@ export const AddCardModal: React.FC = () => {
                     initialSelection.url,
                     (titleChunk) => {
                         if (signal.aborted) return;
-                        console.log('[AddCardModal] Title update:', titleChunk.substring(0, 50));
+                        setIsTitleGenerating(false);
                         streamingTitle.current = titleChunk;
                         setFormData(prev => ({
                             ...prev,
-                            title: titleChunk,
-                            category: initialCategory,
-                            url: initialSelection.url || ''
+                            title: titleChunk
                         }));
                     },
                     (contentChunk) => {
                         if (signal.aborted) return;
-                        console.log('[AddCardModal] Content update, length:', contentChunk.length);
+                        setIsContentGenerating(false);
                         streamingContent.current = contentChunk;
                         setFormData(prev => ({
                             ...prev,
                             content: contentChunk
                         }));
                     },
-                    signal
+                    signal,
+                    needsContentSummary
                 );
 
                 if (!signal.aborted) {
-                    console.log('[AddCardModal] Streaming completed, updating form');
                     setFormData({
                         title: streamingTitle.current || initialSelection.text.substring(0, 50) + '...',
                         content: streamingContent.current || initialSelection.text,
@@ -139,11 +183,11 @@ export const AddCardModal: React.FC = () => {
                         url: initialSelection.url || ''
                     });
                 }
-            } catch (error: any) {
-                if (error.name === 'AbortError' || signal.aborted) {
-                    console.log('[AddCardModal] Auto AI streaming aborted by user');
+            } catch (error) {
+                if (error instanceof Error && error.name === 'AbortError') {
+                    // Silently abort
                 } else {
-                    console.error('[AddCardModal] Auto AI streaming error:', error);
+                    console.error('[AddCardModal] Auto AI error:', error);
                     setFormData({
                         title: initialSelection.text.substring(0, 50) + '...',
                         content: initialSelection.text,
@@ -152,22 +196,30 @@ export const AddCardModal: React.FC = () => {
                     });
                 }
             } finally {
-                setExtractingSelection(false);
-                abortController.current = null;
+                if (!signal.aborted) {
+                    setExtractingSelection(false);
+                    setIsTitleGenerating(false);
+                    setIsContentGenerating(false);
+                }
+                if (abortController.current === currentAbortController) {
+                    abortController.current = null;
+                }
             }
         };
 
         processAutoAI();
-    }, [showAddModal, initialSelection, summarizeTextStreaming, selectedCategory, isAIChecking, isAIAvailable]);
+    }, [showAddModal, initialSelection, summarizeTextStreaming, selectedCategory, isAIChecking]);
 
     useEffect(() => {
         if (!showAddModal) {
-            setForceHideLoading(true);
             setExtractingSelection(false);
             setExtractingWebpage(false);
             setExtractError('');
             setShowCloseConfirm(false);
             setShowSaveConfirm(false);
+            setShowTitleRequiredDialog(false);
+            setIsTitleGenerating(false);
+            setIsContentGenerating(false);
 
             setTimeout(() => {
                 if (editingCard) setEditingCard(null);
@@ -182,11 +234,22 @@ export const AddCardModal: React.FC = () => {
                 }
 
                 chrome.storage.session.remove('pendingSelection');
+
+                setFormData({
+                    title: '',
+                    content: '',
+                    category: DEFAULT_CATEGORY,
+                    url: ''
+                });
             }, 0);
             return;
         }
 
-        setForceHideLoading(false);
+        setExtractingSelection(false);
+        setExtractingWebpage(false);
+        setIsTitleGenerating(false);
+        setIsContentGenerating(false);
+        setExtractError('');
 
         if (editingCardData) {
             setFormData({
@@ -215,48 +278,60 @@ export const AddCardModal: React.FC = () => {
     const handleExtractSelection = async () => {
         setExtractingSelection(true);
         setExtractError('');
+        setIsTitleGenerating(true);
+        setIsContentGenerating(true);
+
+        const currentAbortController = new AbortController();
+        abortController.current = currentAbortController;
+        const signal = currentAbortController.signal;
 
         try {
-            console.log('[AddCardModal] Manual Selection button clicked (STREAMING)');
             const response = await chrome.runtime.sendMessage({
                 command: 'GET_ACTIVE_TAB_SELECTION'
             });
 
-            console.log('[AddCardModal] Content script response:', response);
+            if (signal.aborted) {
+                return;
+            }
 
             if (response && response.success) {
-                console.log('[AddCardModal] Calling streaming AI summarizer for selection...');
-
-                abortController.current = new AbortController();
-                const signal = abortController.current.signal;
                 streamingTitle.current = '';
                 streamingContent.current = '';
+
+                const needsContentSummary = response.data.text.length >= 180;
+
+                // Set URL immediately before AI processing
+                setFormData(prev => ({
+                    ...prev,
+                    url: response.data.url || ''
+                }));
 
                 await summarizeTextStreaming(
                     response.data.text,
                     response.data.url,
                     (titleChunk) => {
                         if (signal.aborted) return;
+                        setIsTitleGenerating(false);
                         streamingTitle.current = titleChunk;
                         setFormData(prev => ({
                             ...prev,
-                            title: titleChunk,
-                            url: response.data.url || prev.url
+                            title: titleChunk
                         }));
                     },
                     (contentChunk) => {
                         if (signal.aborted) return;
+                        setIsContentGenerating(false);
                         streamingContent.current = contentChunk;
                         setFormData(prev => ({
                             ...prev,
                             content: contentChunk
                         }));
                     },
-                    signal
+                    signal,
+                    needsContentSummary
                 );
 
                 if (!signal.aborted) {
-                    console.log('[AddCardModal] Selection streaming completed');
                     setFormData(prev => ({
                         ...prev,
                         title: streamingTitle.current || response.data.text.substring(0, 50) + '...',
@@ -265,45 +340,65 @@ export const AddCardModal: React.FC = () => {
                     }));
                 }
             } else {
-                setExtractError(response?.error || 'Unable to get selection');
+                if (!signal.aborted) {
+                    setExtractError(response?.error || 'Unable to get selection');
+                }
             }
-        } catch (error: any) {
-            if (error.name === 'AbortError' || abortController.current?.signal.aborted) {
-                console.log('[AddCardModal] Selection streaming aborted by user');
-            } else {
-                console.error('[AddCardModal] Failed to extract selection:', error);
-                setExtractError('Extraction failed, please try again');
+        } catch (error) {
+            if (!signal.aborted) {
+                if (error instanceof Error && error.name === 'AbortError') {
+                    // Silently abort
+                } else {
+                    console.error('[AddCardModal] Selection extraction failed:', error);
+                    setExtractError('Extraction failed, please try again');
+                }
             }
         } finally {
-            setExtractingSelection(false);
-            abortController.current = null;
+            if (!signal.aborted) {
+                setExtractingSelection(false);
+                setIsTitleGenerating(false);
+                setIsContentGenerating(false);
+            }
+            if (abortController.current === currentAbortController) {
+                abortController.current = null;
+            }
         }
     };
 
     const handleExtractWebpage = async () => {
         setExtractingWebpage(true);
         setExtractError('');
+        setIsTitleGenerating(true);
+        setIsContentGenerating(true);
+
+        const currentAbortController = new AbortController();
+        abortController.current = currentAbortController;
+        const signal = currentAbortController.signal;
 
         try {
-            console.log('[AddCardModal] Manual Webpage button clicked (STREAMING)');
             const response = await chrome.runtime.sendMessage({
                 command: 'EXTRACT_CURRENT_WEBPAGE'
             });
 
-            console.log('[AddCardModal] Webpage extract response:', response);
+            if (signal.aborted) {
+                return;
+            }
 
             if (response && response.success) {
-                console.log('[AddCardModal] Calling streaming AI webpage summarizer...');
-
-                abortController.current = new AbortController();
-                const signal = abortController.current.signal;
                 streamingTitle.current = '';
                 streamingContent.current = '';
+
+                // Set URL immediately before AI processing
+                setFormData(prev => ({
+                    ...prev,
+                    url: response.data.url || ''
+                }));
 
                 await summarizeWebpageStreaming(
                     response.data,
                     (titleChunk) => {
                         if (signal.aborted) return;
+                        setIsTitleGenerating(false);
                         streamingTitle.current = titleChunk;
                         setFormData(prev => ({
                             ...prev,
@@ -313,6 +408,7 @@ export const AddCardModal: React.FC = () => {
                     },
                     (contentChunk) => {
                         if (signal.aborted) return;
+                        setIsContentGenerating(false);
                         streamingContent.current = contentChunk;
                         setFormData(prev => ({
                             ...prev,
@@ -323,7 +419,6 @@ export const AddCardModal: React.FC = () => {
                 );
 
                 if (!signal.aborted) {
-                    console.log('[AddCardModal] Webpage streaming completed');
                     setFormData(prev => ({
                         ...prev,
                         title: streamingTitle.current || response.data.title,
@@ -332,25 +427,34 @@ export const AddCardModal: React.FC = () => {
                     }));
                 }
             } else {
-                setExtractError(response?.error || 'Unable to extract webpage');
+                if (!signal.aborted) {
+                    setExtractError(response?.error || 'Unable to extract webpage');
+                }
             }
-        } catch (error: any) {
-            if (error.name === 'AbortError' || abortController.current?.signal.aborted) {
-                console.log('[AddCardModal] Webpage streaming aborted by user');
-            } else {
-                console.error('[AddCardModal] Failed to extract webpage:', error);
-                setExtractError('Extraction failed, please try again');
+        } catch (error) {
+            if (!signal.aborted) {
+                if (error instanceof Error && error.name === 'AbortError') {
+                    // Silently abort
+                } else {
+                    console.error('[AddCardModal] Webpage extraction failed:', error);
+                    setExtractError('Extraction failed, please try again');
+                }
             }
         } finally {
-            setExtractingWebpage(false);
-            abortController.current = null;
+            if (!signal.aborted) {
+                setExtractingWebpage(false);
+                setIsTitleGenerating(false);
+                setIsContentGenerating(false);
+            }
+            if (abortController.current === currentAbortController) {
+                abortController.current = null;
+            }
         }
     };
 
     const handleSave = async () => {
-        // Validate title
         if (!formData.title.trim()) {
-            alert('Please enter a title');
+            setShowTitleRequiredDialog(true);
             return;
         }
 
@@ -385,7 +489,6 @@ export const AddCardModal: React.FC = () => {
         setShowSaveConfirm(false);
 
         if (abortController.current) {
-            console.log('[AddCardModal] Aborting AI processing before save');
             abortController.current.abort();
             abortController.current = null;
         }
@@ -393,11 +496,11 @@ export const AddCardModal: React.FC = () => {
         hasProcessedAutoAI.current = false;
         setInitialSelection(null);
         chrome.storage.session.remove('pendingSelection');
+        setIsTitleGenerating(false);
+        setIsContentGenerating(false);
 
         performSave();
     };
-
-    const isAnyLoading = !forceHideLoading && (extractingSelection || extractingWebpage || isAIProcessing);
 
     if (!showAddModal) return null;
 
@@ -424,17 +527,30 @@ export const AddCardModal: React.FC = () => {
                                     {isAIChecking && (
                                         <span className="ml-2 text-xs text-blue-600">🔄 Checking AI...</span>
                                     )}
-                                    {!isAIChecking && isAIAvailable && (
+                                    {!isAIChecking && !isAIProcessing && isAIAvailable && (
                                         <span className="ml-2 text-xs text-green-600">✓ AI Ready</span>
                                     )}
-                                    {!isAIChecking && !isAIAvailable && (
+                                    {!isAIChecking && !isAIProcessing && !isAIAvailable && (
                                         <span className="ml-2 text-xs text-yellow-600">⚠ AI Unavailable</span>
                                     )}
+                                    {!isAIChecking && (extractingSelection || extractingWebpage || isAIProcessing) && (
+                                        <span className="ml-2 text-xs text-blue-600">
+                                            <Loader2 className="inline w-3 h-3 animate-spin mr-1" />
+                                            AI is summarizing...
+                                        </span>
+                                    )}
                                 </label>
+
+                                {isRestrictedPage && (
+                                    <div className="text-sm text-amber-600 bg-amber-50 p-2 rounded-lg">
+                                        ⚠ Cannot extract from this page (Chrome restriction). Please navigate to a regular webpage.
+                                    </div>
+                                )}
+
                                 <div className="grid grid-cols-2 gap-2">
                                     <button
                                         onClick={handleExtractSelection}
-                                        disabled={isAnyLoading || isAIChecking}
+                                        disabled={isRestrictedPage || extractingSelection || extractingWebpage || isAIProcessing || isAIChecking}
                                         className="px-3 py-2.5 bg-slate-500 text-white text-sm rounded-lg hover:bg-slate-600 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 transition-colors"
                                     >
                                         {extractingSelection ? (
@@ -447,7 +563,7 @@ export const AddCardModal: React.FC = () => {
 
                                     <button
                                         onClick={handleExtractWebpage}
-                                        disabled={isAnyLoading || isAIChecking}
+                                        disabled={isRestrictedPage || extractingSelection || extractingWebpage || isAIProcessing || isAIChecking}
                                         className="px-3 py-2.5 bg-teal-500 text-white text-sm rounded-lg hover:bg-teal-600 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 transition-colors"
                                     >
                                         {extractingWebpage ? (
@@ -464,20 +580,6 @@ export const AddCardModal: React.FC = () => {
                                         {extractError}
                                     </div>
                                 )}
-
-                                {isAIChecking && (
-                                    <div className="mt-2 text-sm text-blue-600 bg-blue-50 p-2 rounded-lg flex items-center gap-2">
-                                        <Loader2 className="w-4 h-4 animate-spin" />
-                                        Checking Chrome AI availability...
-                                    </div>
-                                )}
-
-                                {(extractingSelection || extractingWebpage || isAIProcessing) && !isAIChecking && (
-                                    <div className="mt-2 text-sm text-blue-600 bg-blue-50 p-2 rounded-lg flex items-center gap-2">
-                                        <Loader2 className="w-4 h-4 animate-spin" />
-                                        AI is extracting and summarizing content...
-                                    </div>
-                                )}
                             </div>
                         )}
 
@@ -485,25 +587,39 @@ export const AddCardModal: React.FC = () => {
                             <label className="block text-sm font-medium mb-1 text-gray-700">
                                 Title <span className="text-red-500">*</span>
                             </label>
-                            <input
-                                type="text"
-                                value={formData.title}
-                                onChange={(e) => setFormData({...formData, title: e.target.value})}
-                                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
-                                placeholder="Enter card title..."
-                                required
-                            />
+                            <div className="relative">
+                                <input
+                                    type="text"
+                                    value={formData.title}
+                                    onChange={(e) => setFormData({...formData, title: e.target.value})}
+                                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                                    placeholder="Enter card title..."
+                                    required
+                                />
+                                {isTitleGenerating && (
+                                    <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
+                                        <Loader2 className="w-4 h-4 text-emerald-500 animate-spin" />
+                                    </div>
+                                )}
+                            </div>
                         </div>
 
                         <div>
                             <label className="block text-sm font-medium mb-1 text-gray-700">Content</label>
-                            <textarea
-                                value={formData.content}
-                                onChange={(e) => setFormData({...formData, content: e.target.value})}
-                                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
-                                rows={8}
-                                placeholder="Enter detailed content..."
-                            />
+                            <div className="relative">
+                                <textarea
+                                    value={formData.content}
+                                    onChange={(e) => setFormData({...formData, content: e.target.value})}
+                                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                                    rows={8}
+                                    placeholder="Enter detailed content..."
+                                />
+                                {isContentGenerating && (
+                                    <div className="absolute right-3 top-3">
+                                        <Loader2 className="w-4 h-4 text-emerald-500 animate-spin" />
+                                    </div>
+                                )}
+                            </div>
                         </div>
 
                         <div>
@@ -563,6 +679,16 @@ export const AddCardModal: React.FC = () => {
                 cancelText="Wait"
                 onConfirm={handleConfirmSave}
                 onCancel={() => setShowSaveConfirm(false)}
+            />
+
+            <ConfirmDialog
+                isOpen={showTitleRequiredDialog}
+                title="Title Required"
+                message="Please enter a title for your card before saving."
+                confirmText="OK"
+                cancelText=""
+                onConfirm={() => setShowTitleRequiredDialog(false)}
+                onCancel={() => setShowTitleRequiredDialog(false)}
             />
         </>
     );

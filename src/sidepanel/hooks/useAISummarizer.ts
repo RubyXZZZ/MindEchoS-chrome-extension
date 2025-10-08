@@ -1,5 +1,5 @@
 // hooks/useAISummarizer.ts
-// 在 Sidepanel 中使用 Summarizer API 的 Hook
+// Hook for using Summarizer API in Sidepanel
 
 import { useEffect, useCallback, useState } from 'react';
 import { SummarizeAI } from '../services/ai/summarizeAI';
@@ -17,7 +17,8 @@ interface UseAISummarizerReturn {
         url: string,
         onTitleChunk: (chunk: string) => void,
         onContentChunk: (chunk: string) => void,
-        signal?: AbortSignal
+        signal?: AbortSignal,
+        needsContentSummary?: boolean
     ) => Promise<SummarizeResult>;
     summarizeWebpageStreaming: (
         pageData: { title: string; content: string; url: string },
@@ -36,15 +37,10 @@ export function useAISummarizer(): UseAISummarizerReturn {
     const [isChecking, setIsChecking] = useState(true);
 
     useEffect(() => {
-        // 检查 Summarizer API 是否可用
         const checkAvailability = async () => {
             setIsChecking(true);
             try {
-                console.log('[AI Hook] Checking Summarizer API availability...');
-
-                // 使用官方文档的检测方式
                 if (!('Summarizer' in self)) {
-                    console.warn('[AI Hook] Summarizer API not found in global scope');
                     setIsAvailable(false);
                     return;
                 }
@@ -52,26 +48,19 @@ export function useAISummarizer(): UseAISummarizerReturn {
                 const summarizer = SummarizeAI.getInstance();
                 const availability = await summarizer.checkAvailability();
 
-                console.log('[AI Hook] Summarizer availability:', availability);
-
-                // 'readily' 或 'after-download' 都算可用
                 const available = availability !== 'no';
                 setIsAvailable(available);
 
                 if (available) {
-                    console.log('[AI Hook] ✓ Summarizer API is available');
-                    if (availability === 'after-download') {
-                        console.log('[AI Hook] ⚠ Model may need to be downloaded on first use');
-                    }
+                    console.log('[AI Hook] ✓ Summarizer API available');
                 } else {
-                    console.warn('[AI Hook] ✗ Summarizer API is not available');
+                    console.log('[AI Hook] ✗ Summarizer API not available');
                 }
             } catch (error) {
-                console.error('[AI Hook] Failed to check availability:', error);
+                console.error('[AI Hook] Availability check failed:', error);
                 setIsAvailable(false);
             } finally {
                 setIsChecking(false);
-                console.log('[AI Hook] Availability check completed');
             }
         };
 
@@ -83,15 +72,10 @@ export function useAISummarizer(): UseAISummarizerReturn {
         url: string,
         onTitleChunk: (chunk: string) => void,
         onContentChunk: (chunk: string) => void,
-        signal?: AbortSignal
+        signal?: AbortSignal,
+        needsContentSummary: boolean = true
     ): Promise<SummarizeResult> => {
-        console.log('[AI Hook] summarizeTextStreaming called');
-        console.log('[AI Hook] - Text length:', text.length);
-        console.log('[AI Hook] - URL:', url);
-        console.log('[AI Hook] - isAvailable:', isAvailable);
-
         if (!isAvailable) {
-            console.log('[AI Hook] Using fallback (AI not available)');
             const fallbackTitle = text.substring(0, 50) + (text.length > 50 ? '...' : '');
             const fallbackContent = text;
             onTitleChunk(fallbackTitle);
@@ -105,19 +89,20 @@ export function useAISummarizer(): UseAISummarizerReturn {
 
         setIsProcessing(true);
         try {
-            console.log('[AI Hook] Calling streaming summarization...');
             const summarizer = SummarizeAI.getInstance();
+            const skipContentSummary = !needsContentSummary;
+
             const result = await summarizer.summarizeSelectionStreaming(
                 text,
                 url,
                 onTitleChunk,
                 onContentChunk,
-                signal
+                signal,
+                skipContentSummary
             );
-            console.log('[AI Hook] Streaming completed:', result);
             return result;
         } catch (error) {
-            console.error('[AI Hook] Streaming error:', error);
+            console.error('[AI Hook] Summarization error:', error);
             const fallbackTitle = text.substring(0, 50) + '...';
             const fallbackContent = text;
             onTitleChunk(fallbackTitle);
@@ -138,13 +123,7 @@ export function useAISummarizer(): UseAISummarizerReturn {
         onContentChunk: (chunk: string) => void,
         signal?: AbortSignal
     ): Promise<SummarizeResult> => {
-        console.log('[AI Hook] summarizeWebpageStreaming called');
-        console.log('[AI Hook] - Page title:', pageData.title);
-        console.log('[AI Hook] - Content length:', pageData.content.length);
-        console.log('[AI Hook] - isAvailable:', isAvailable);
-
         if (!isAvailable) {
-            console.log('[AI Hook] Using fallback for webpage (AI not available)');
             const fallbackContent = pageData.content.substring(0, 500) + (pageData.content.length > 500 ? '...' : '');
             onTitleChunk(pageData.title);
             onContentChunk(fallbackContent);
@@ -157,7 +136,6 @@ export function useAISummarizer(): UseAISummarizerReturn {
 
         setIsProcessing(true);
         try {
-            console.log('[AI Hook] Calling streaming webpage summarization...');
             const summarizer = SummarizeAI.getInstance();
             const result = await summarizer.summarizeWebpageStreaming(
                 pageData,
@@ -165,10 +143,9 @@ export function useAISummarizer(): UseAISummarizerReturn {
                 onContentChunk,
                 signal
             );
-            console.log('[AI Hook] Webpage streaming completed:', result);
             return result;
         } catch (error) {
-            console.error('[AI Hook] Webpage streaming error:', error);
+            console.error('[AI Hook] Webpage summarization error:', error);
             const fallbackContent = pageData.content.substring(0, 500) + '...';
             onTitleChunk(pageData.title);
             onContentChunk(fallbackContent);
