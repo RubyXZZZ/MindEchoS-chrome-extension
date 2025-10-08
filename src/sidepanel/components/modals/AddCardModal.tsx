@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { X, Save, Type, Globe, Loader2 } from 'lucide-react';
+import { X, Save, Type, Globe, Loader2, Info } from 'lucide-react';
 import { useStore } from '../../store';
 import { KnowledgeCard } from '../../types/card.types';
 import { CARD_COLORS, DEFAULT_CATEGORY, ALL_CARDS_FILTER } from '../../utils/constants';
@@ -522,24 +522,48 @@ export const AddCardModal: React.FC = () => {
                     <div className="p-4 space-y-3 overflow-y-auto flex-grow">
                         {!isEditing && (
                             <div className="space-y-2">
-                                <label className="block text-sm font-medium text-gray-700">
-                                    AI Extract
-                                    {isAIChecking && (
-                                        <span className="ml-2 text-xs text-blue-600">🔄 Checking AI...</span>
-                                    )}
-                                    {!isAIChecking && !isAIProcessing && isAIAvailable && (
-                                        <span className="ml-2 text-xs text-green-600">✓ AI Ready</span>
-                                    )}
-                                    {!isAIChecking && !isAIProcessing && !isAIAvailable && (
-                                        <span className="ml-2 text-xs text-yellow-600">⚠ AI Unavailable</span>
-                                    )}
-                                    {!isAIChecking && (extractingSelection || extractingWebpage || isAIProcessing) && (
-                                        <span className="ml-2 text-xs text-blue-600">
-                                            <Loader2 className="inline w-3 h-3 animate-spin mr-1" />
-                                            AI is summarizing...
-                                        </span>
-                                    )}
-                                </label>
+                                <div className="flex items-center justify-between">
+                                    <label className="block text-sm font-medium text-gray-700">
+                                        AI Summarize
+                                        {isAIChecking && (
+                                            <span className="ml-2 text-xs text-blue-600">🔄 Checking AI...</span>
+                                        )}
+                                        {!isAIChecking && !isAIProcessing && isAIAvailable && (
+                                            <span className="ml-2 text-xs text-green-600">✓ AI Ready</span>
+                                        )}
+                                        {!isAIChecking && !isAIProcessing && !isAIAvailable && (
+                                            <span className="ml-2 text-xs text-yellow-600">⚠ AI Unavailable</span>
+                                        )}
+                                        {!isAIChecking && (extractingSelection || extractingWebpage || isAIProcessing) && (
+                                            <span className="ml-2 text-xs text-blue-600">
+                                                <Loader2 className="inline w-3 h-3 animate-spin mr-1" />
+                                                AI is summarizing...
+                                            </span>
+                                        )}
+                                    </label>
+                                    <div className="group relative inline-block">
+                                        <Info className="w-4 h-4 text-gray-400 hover:text-gray-600 cursor-help transition-colors" />
+                                        <div className="absolute right-0 top-6 w-72 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-[10002] pointer-events-none">
+                                            <div className="bg-gray-900 text-white text-xs rounded-lg shadow-lg p-3 space-y-2">
+                                                <div>
+                                                    <p className="font-medium mb-0.5">Selection</p>
+                                                    <p className="text-gray-300">Extract & summarize <strong>SELECTED</strong> text on the page.</p>
+                                                </div>
+
+                                                <div>
+                                                    <p className="font-medium mb-0.5">Webpage</p>
+                                                    <p className="text-gray-300">Extract & summarize the entire webpage content.</p>
+                                                </div>
+
+                                                <div className="pt-2 border-t border-gray-700">
+                                                    <p className="text-gray-400 leading-relaxed">
+                                                        Both use AI to generate concise titles and summaries. You can edit them before saving.
+                                                    </p>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
 
                                 {isRestrictedPage && (
                                     <div className="text-sm text-amber-600 bg-amber-50 p-2 rounded-lg">
@@ -684,7 +708,7 @@ export const AddCardModal: React.FC = () => {
             <ConfirmDialog
                 isOpen={showTitleRequiredDialog}
                 title="Title Required"
-                message="Please enter a title for your card before saving."
+                message="Please input a title for your card before saving."
                 confirmText="OK"
                 cancelText=""
                 onConfirm={() => setShowTitleRequiredDialog(false)}
