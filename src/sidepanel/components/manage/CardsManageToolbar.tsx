@@ -35,9 +35,9 @@ export const CardsManageToolbar: React.FC<CardsManageToolbarProps> = ({
     const categoryButtonRef = useRef<HTMLButtonElement>(null);
     const [buttonPosition, setButtonPosition] = useState({ top: 0, right: 0 });
 
-    // Filter out non-existent card IDs
+    // Filter out non-existent card IDs and sample card
     const validSelectedCards = selectedCards.filter(id =>
-        cards.some(card => card.id === id)
+        cards.some(card => card.id === id) && id !== 'sample-card-1'
     );
 
     const handleLinkToChat = async () => {
@@ -46,15 +46,20 @@ export const CardsManageToolbar: React.FC<CardsManageToolbarProps> = ({
             return;
         }
 
-        // Check if there's an existing conversation in storage
+        // Check if there's actual conversation (user input or AI response)
+        // Not just card selection without interaction
         const result = await chrome.storage.local.get(STORAGE_KEYS.CURRENT_CHAT);
-        const hasExistingConversation = result[STORAGE_KEYS.CURRENT_CHAT]?.messages?.length > 0 || messages.length > 0;
+        const savedMessages = result[STORAGE_KEYS.CURRENT_CHAT]?.messages || [];
+        const currentMessages = messages.length > 0 ? messages : savedMessages;
 
-        if (hasExistingConversation) {
+        // Has real conversation if there are any user or assistant messages
+        const hasRealConversation = currentMessages.length > 0;
+
+        if (hasRealConversation) {
             // Show dialog to choose action
             setShowNewChatDialog(true);
         } else {
-            // Direct to chat with selected cards
+            // Direct to chat with selected cards (new conversation)
             setSelectedCardsForChat(validSelectedCards);
             onActionComplete();
             // Use setTimeout to ensure state is updated before navigation
@@ -111,11 +116,34 @@ export const CardsManageToolbar: React.FC<CardsManageToolbarProps> = ({
 
     const handleExport = () => {
         const selectedData = cards.filter(card => validSelectedCards.includes(card.id));
-        const dataStr = JSON.stringify(selectedData, null, 2);
-        const dataUri = 'data:application/json;charset=utf-8,' + encodeURIComponent(dataStr);
+
+        // Format as readable text
+        const textContent = selectedData.map((card, index) => {
+            const lines = [
+                `Card ${index + 1}`,
+                '='.repeat(50),
+                `Title: ${card.title}`,
+                `Category: ${card.category || 'Other'}`,
+                `URL: ${card.url || 'N/A'}`,
+                `Created: ${new Date(card.timestamp).toLocaleString()}`,
+                '',
+                'Content:',
+                '-'.repeat(50),
+                card.content,
+                '',
+                '='.repeat(50),
+                ''
+            ];
+            return lines.join('\n');
+        }).join('\n');
+
+        const header = `Knowledge Cards Export\nTotal Cards: ${selectedData.length}\nExported: ${new Date().toLocaleString()}\n\n${'='.repeat(50)}\n\n`;
+        const fullText = header + textContent;
+
+        const dataUri = 'data:text/plain;charset=utf-8,' + encodeURIComponent(fullText);
         const linkElement = document.createElement('a');
         linkElement.setAttribute('href', dataUri);
-        linkElement.setAttribute('download', `cards_export_${Date.now()}.json`);
+        linkElement.setAttribute('download', `cards_export_${Date.now()}.txt`);
         linkElement.click();
     };
 

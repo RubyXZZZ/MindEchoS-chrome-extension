@@ -55,6 +55,11 @@ export const CardsView: React.FC<CardsViewProps> = ({
 
     const filteredCards = useMemo(() => {
         return cards.filter(card => {
+            // Filter out sample card in AI selection mode
+            if (aiSelectionMode && card.id === 'sample-card-1') {
+                return false;
+            }
+
             const cardCategory = card.category || DEFAULT_CATEGORY;
 
             const matchesSearch = !searchQuery ||
@@ -66,7 +71,7 @@ export const CardsView: React.FC<CardsViewProps> = ({
 
             return matchesSearch && matchesCategory;
         }).sort((a, b) => a.timestamp - b.timestamp);
-    }, [cards, searchQuery, selectedCategory]);
+    }, [cards, searchQuery, selectedCategory, aiSelectionMode]);
 
     const categoryCounts = useMemo(() => {
         const counts: { [key: string]: number } = { [ALL_CARDS_FILTER]: cards.length };
@@ -119,21 +124,31 @@ export const CardsView: React.FC<CardsViewProps> = ({
     };
 
     const handleAiSelectionConfirm = async () => {
-        if (aiSelectedCards.length === 0) {
+        // Filter out sample card before confirmation
+        const validSelectedCards = aiSelectedCards.filter(id => id !== 'sample-card-1');
+
+        if (validSelectedCards.length === 0) {
             alert('Please select at least one card');
             return;
         }
 
-        // Check if there's an existing conversation in storage
+        // Check if there's actual conversation (user input or AI response)
+        // Not just card selection without interaction
         const result = await chrome.storage.local.get(STORAGE_KEYS.CURRENT_CHAT);
-        const hasExistingConversation = result[STORAGE_KEYS.CURRENT_CHAT]?.messages?.length > 0 || messages.length > 0;
+        const savedMessages = result[STORAGE_KEYS.CURRENT_CHAT]?.messages || [];
+        const currentMessages = messages.length > 0 ? messages : savedMessages;
 
-        if (hasExistingConversation) {
+        // Has real conversation if there are any user or assistant messages
+        const hasRealConversation = currentMessages.length > 0;
+
+        if (hasRealConversation) {
+            // Update aiSelectedCards to filtered version
+            setAiSelectedCards(validSelectedCards);
             // Show dialog to choose action
             setShowNewChatDialog(true);
         } else {
-            // Direct to chat with selected cards
-            setSelectedCardsForChat(aiSelectedCards);
+            // Direct to chat with selected cards (new conversation)
+            setSelectedCardsForChat(validSelectedCards);
             setAiSelectionMode(false);
             setAiSelectedCards([]);
             // Use setTimeout to ensure state is updated before navigation

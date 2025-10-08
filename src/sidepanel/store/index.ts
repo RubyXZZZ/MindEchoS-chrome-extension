@@ -69,7 +69,7 @@ interface AppState {
     archiveCurrentChat: () => Promise<void>;
     loadArchive: (archiveId: string) => void;
     deleteArchive: (archiveId: string) => Promise<void>;
-    exportArchive: (archiveId: string) => void;
+    // exportArchive: (archiveId: string) => void;
     loadChatArchives: () => Promise<void>;
 
     // UI Actions
@@ -459,20 +459,20 @@ export const useStore = create<AppState>((set, get) => ({
         }
     },
 
-    exportArchive: (archiveId: string) => {
-        const state = get();
-        const archive = state.chatArchives.find(a => a.id === archiveId);
-
-        if (archive) {
-            const dataStr = JSON.stringify(archive, null, 2);
-            const dataUri = 'data:application/json;charset=utf-8,' + encodeURIComponent(dataStr);
-            const linkElement = document.createElement('a');
-            linkElement.setAttribute('href', dataUri);
-            linkElement.setAttribute('download', `chat_${archive.id}.json`);
-            linkElement.click();
-            console.log('[Store] Archive exported:', archiveId);
-        }
-    },
+    // exportArchive: (archiveId: string) => {
+    //     const state = get();
+    //     const archive = state.chatArchives.find(a => a.id === archiveId);
+    //
+    //     if (archive) {
+    //         const dataStr = JSON.stringify(archive, null, 2);
+    //         const dataUri = 'data:application/json;charset=utf-8,' + encodeURIComponent(dataStr);
+    //         const linkElement = document.createElement('a');
+    //         linkElement.setAttribute('href', dataUri);
+    //         linkElement.setAttribute('download', `chat_${archive.id}.json`);
+    //         linkElement.click();
+    //         console.log('[Store] Archive exported:', archiveId);
+    //     }
+    // },
 
     loadChatArchives: async () => {
         try {

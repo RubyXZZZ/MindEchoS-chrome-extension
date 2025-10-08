@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { ArrowLeft, Trash2, Download, Calendar, MessageSquare, Archive as ArchiveIcon } from 'lucide-react';
+import { ArrowLeft, Trash2, Calendar, MessageSquare, Archive as ArchiveIcon } from 'lucide-react';
 import { useStore } from '../store';
 import { formatTime } from '../utils/formatters';
 import { STORAGE_KEYS } from '../utils/constants';
@@ -10,11 +10,10 @@ export const SettingsView: React.FC = () => {
         loadChatArchives,
         loadArchive,
         deleteArchive,
-        exportArchive,
         setCurrentView
     } = useStore();
 
-    // 检查是否从 History 按钮进入，默认打开 archives tab
+    // Check if entering from History button, default open archives tab
     const [activeTab, setActiveTab] = useState<'general' | 'archives'>(() => {
         const openTab = localStorage.getItem('openSettingsTab');
         if (openTab === 'archives') {
@@ -165,14 +164,14 @@ export const SettingsView: React.FC = () => {
                                                         {archive.title}
                                                     </h4>
                                                     <div className="flex items-center gap-3 text-xs text-gray-500">
-                                                    <span className="flex items-center gap-1">
-                                                        <MessageSquare className="w-3 h-3" />
-                                                        {archive.messages.length} messages
-                                                    </span>
                                                         <span className="flex items-center gap-1">
-                                                        <Calendar className="w-3 h-3" />
+                                                            <MessageSquare className="w-3 h-3" />
+                                                            {archive.messages.length} messages
+                                                        </span>
+                                                        <span className="flex items-center gap-1">
+                                                            <Calendar className="w-3 h-3" />
                                                             {formatTime(archive.archivedAt)}
-                                                    </span>
+                                                        </span>
                                                     </div>
                                                 </div>
                                             </div>
@@ -189,12 +188,6 @@ export const SettingsView: React.FC = () => {
                                                     className="flex-1 px-3 py-1.5 bg-emerald-50 text-emerald-700 text-xs rounded hover:bg-emerald-100 font-medium"
                                                 >
                                                     Load Chat
-                                                </button>
-                                                <button
-                                                    onClick={() => exportArchive(archive.id)}
-                                                    className="px-3 py-1.5 bg-purple-50 text-purple-700 text-xs rounded hover:bg-purple-100 flex items-center gap-1"
-                                                >
-                                                    <Download className="w-3 h-3" />
                                                 </button>
                                                 <button
                                                     onClick={() => handleDeleteArchive(archive.id)}
