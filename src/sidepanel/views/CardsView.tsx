@@ -1,10 +1,12 @@
-
-
+// src/views/CardsView.tsx
 import React, { useState, useMemo, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import { Plus, Search, X, Check } from 'lucide-react';
 import { useStore } from '../store';
 import { CardItem } from '../components/cards/CardItem';
-import { ALL_CARDS_FILTER, DEFAULT_CATEGORY, PROTECTED_CATEGORIES } from '../utils/constants';
+import { ALL_CARDS_FILTER, DEFAULT_CATEGORY, PROTECTED_CATEGORIES, STORAGE_KEYS } from '../utils/constants';
+import { AIRobotIcon } from '../components/layout/AIRobotIcon';
+import { ConfirmDialog } from '../components/modals/ConfirmDialog';
 
 interface CardsViewProps {
     manageModeState?: {
@@ -15,7 +17,7 @@ interface CardsViewProps {
 }
 
 const CARD_OFFSET = 50;
-const EXPANDED_CARD_HEIGHT = 400;  // 改为 400，匹配 CardItem 的实际高度
+const EXPANDED_CARD_HEIGHT = 400;
 const COLLAPSED_CARD_HEIGHT = 180;
 
 export const CardsView: React.FC<CardsViewProps> = ({
@@ -34,10 +36,22 @@ export const CardsView: React.FC<CardsViewProps> = ({
         addCategory,
         triggerDeleteCategory,
         setShowAddModal,
+        selectedCardsForChat,
+        setSelectedCardsForChat,
+        setCurrentView,
+        messages,
+        clearMessages,
+        archiveCurrentChat,
+        saveCurrentChat
     } = useStore();
 
     const [showNewCategoryInput, setShowNewCategoryInput] = useState(false);
     const [newCategoryValue, setNewCategoryValue] = useState('');
+
+    // AI selection mode
+    const [aiSelectionMode, setAiSelectionMode] = useState(false);
+    const [aiSelectedCards, setAiSelectedCards] = useState<string[]>([]);
+    const [showNewChatDialog, setShowNewChatDialog] = useState(false);
 
     const filteredCards = useMemo(() => {
         return cards.filter(card => {
@@ -64,8 +78,16 @@ export const CardsView: React.FC<CardsViewProps> = ({
     }, [cards]);
 
     const handleCardSelect = useCallback((cardId: string) => {
-        onCardSelect?.(cardId);
-    }, [onCardSelect]);
+        if (aiSelectionMode) {
+            setAiSelectedCards(prev =>
+                prev.includes(cardId)
+                    ? prev.filter(id => id !== cardId)
+                    : [...prev, cardId]
+            );
+        } else {
+            onCardSelect?.(cardId);
+        }
+    }, [aiSelectionMode, onCardSelect]);
 
     const handleExpandCard = useCallback((cardId: string) => {
         setExpandedCard(expandedCard === cardId ? null : cardId);
@@ -83,6 +105,79 @@ export const CardsView: React.FC<CardsViewProps> = ({
     const handleCancelNewCategory = () => {
         setShowNewCategoryInput(false);
         setNewCategoryValue('');
+    };
+
+    // AI Robot Button Handlers
+    const handleAiRobotClick = () => {
+        setAiSelectionMode(true);
+        setAiSelectedCards([]);
+    };
+
+    const handleAiSelectionCancel = () => {
+        setAiSelectionMode(false);
+        setAiSelectedCards([]);
+    };
+
+    const handleAiSelectionConfirm = async () => {
+        if (aiSelectedCards.length === 0) {
+            alert('Please select at least one card');
+            return;
+        }
+
+        // Check if there's an existing conversation in storage
+        const result = await chrome.storage.local.get(STORAGE_KEYS.CURRENT_CHAT);
+        const hasExistingConversation = result[STORAGE_KEYS.CURRENT_CHAT]?.messages?.length > 0 || messages.length > 0;
+
+        if (hasExistingConversation) {
+            // Show dialog to choose action
+            setShowNewChatDialog(true);
+        } else {
+            // Direct to chat with selected cards
+            setSelectedCardsForChat(aiSelectedCards);
+            setAiSelectionMode(false);
+            setAiSelectedCards([]);
+            // Use setTimeout to ensure state is updated before navigation
+            setTimeout(() => {
+                setCurrentView('chat');
+            }, 0);
+        }
+    };
+
+    const handleContinueChat = async () => {
+        // Add new cards to existing selected cards (remove duplicates)
+        const combinedCards = [...new Set([...selectedCardsForChat, ...aiSelectedCards])];
+
+        // Update state
+        setSelectedCardsForChat(combinedCards);
+
+        // Save to storage using store's method
+        await saveCurrentChat();
+
+        setShowNewChatDialog(false);
+        setAiSelectionMode(false);
+        setAiSelectedCards([]);
+
+        // Navigate after ensuring state is persisted
+        setCurrentView('chat');
+    };
+
+    const handleDeleteAndNewChat = async () => {
+        clearMessages();
+        setSelectedCardsForChat(aiSelectedCards);
+        await chrome.storage.local.remove(STORAGE_KEYS.CURRENT_CHAT);
+        setCurrentView('chat');
+        setShowNewChatDialog(false);
+        setAiSelectionMode(false);
+        setAiSelectedCards([]);
+    };
+
+    const handleArchiveAndNewChat = async () => {
+        await archiveCurrentChat();
+        setSelectedCardsForChat(aiSelectedCards);
+        setCurrentView('chat');
+        setShowNewChatDialog(false);
+        setAiSelectionMode(false);
+        setAiSelectedCards([]);
     };
 
     const { cardPositions, containerHeight } = useMemo(() => {
@@ -116,7 +211,7 @@ export const CardsView: React.FC<CardsViewProps> = ({
                     <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
                     <input
                         type="text"
-                        placeholder="搜索卡片..."
+                        placeholder="Search cards..."
                         value={searchQuery}
                         onChange={(e) => setSearchQuery(e.target.value)}
                         className="w-full pl-9 pr-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/30"
@@ -145,7 +240,7 @@ export const CardsView: React.FC<CardsViewProps> = ({
                                         triggerDeleteCategory(filter);
                                     }}
                                     className="absolute -top-1.5 -right-1.5 w-4 h-4 bg-red-500 text-white rounded-full flex items-center justify-center hover:bg-red-600 transition-colors"
-                                    title={`删除分类 "${filter}"`}
+                                    title={`Delete category "${filter}"`}
                                 >
                                     <X className="w-3 h-3" />
                                 </button>
@@ -161,7 +256,7 @@ export const CardsView: React.FC<CardsViewProps> = ({
                                     onChange={(e) => setNewCategoryValue(e.target.value)}
                                     onKeyPress={(e) => e.key === 'Enter' && newCategoryValue.trim() && handleAddNewCategory()}
                                     className="w-24 px-2 py-1 bg-white border border-gray-300 rounded-md text-xs focus:outline-none focus:ring-1 focus:ring-emerald-500"
-                                    placeholder="新分类"
+                                    placeholder="New category"
                                     autoFocus
                                 />
                                 <button
@@ -172,14 +267,14 @@ export const CardsView: React.FC<CardsViewProps> = ({
                                             ? 'bg-emerald-500 text-white hover:bg-emerald-600'
                                             : 'bg-gray-200 text-gray-400 cursor-not-allowed'
                                     }`}
-                                    title="确认添加"
+                                    title="Confirm"
                                 >
                                     <Check className="w-3 h-3" />
                                 </button>
                                 <button
                                     onClick={handleCancelNewCategory}
                                     className="p-1 bg-red-500 text-white rounded-full hover:bg-red-600 transition-colors"
-                                    title="取消"
+                                    title="Cancel"
                                 >
                                     <X className="w-3 h-3" />
                                 </button>
@@ -188,7 +283,7 @@ export const CardsView: React.FC<CardsViewProps> = ({
                             <button
                                 onClick={() => setShowNewCategoryInput(true)}
                                 className="flex items-center justify-center w-6 h-6 bg-gray-200 text-gray-500 rounded-full hover:bg-gray-300"
-                                title="添加新分类"
+                                title="Add new category"
                             >
                                 <Plus className="w-4 h-4" />
                             </button>
@@ -203,6 +298,8 @@ export const CardsView: React.FC<CardsViewProps> = ({
                         {filteredCards.map((card, index) => {
                             const isExpanded = expandedCard === card.id;
                             const topPosition = cardPositions[card.id] ?? 0;
+                            const isAiSelected = aiSelectionMode && aiSelectedCards.includes(card.id);
+
                             return (
                                 <div
                                     key={card.id}
@@ -211,8 +308,8 @@ export const CardsView: React.FC<CardsViewProps> = ({
                                 >
                                     <CardItem
                                         card={card}
-                                        isManageMode={manageModeState?.isManageMode || false}
-                                        isSelected={manageModeState?.selectedCards.includes(card.id) || false}
+                                        isManageMode={aiSelectionMode || manageModeState?.isManageMode || false}
+                                        isSelected={isAiSelected || manageModeState?.selectedCards.includes(card.id) || false}
                                         onSelect={handleCardSelect}
                                         isExpanded={isExpanded}
                                         onExpand={() => handleExpandCard(card.id)}
@@ -227,18 +324,78 @@ export const CardsView: React.FC<CardsViewProps> = ({
                         <div className="bg-gray-100 rounded-full p-4 mb-4">
                             <Search className="w-8 h-8 text-gray-400" />
                         </div>
-                        <p className="text-gray-500 text-sm">{searchQuery || selectedCategory !== ALL_CARDS_FILTER ? '没有找到匹配的卡片' : '还没有知识卡片'}</p>
-                        <p className="text-gray-400 text-xs">{searchQuery || selectedCategory !== ALL_CARDS_FILTER ? '试试其他搜索词或分类' : '点击右下角按钮创建第一张卡片'}</p>
+                        <p className="text-gray-500 text-sm">{searchQuery || selectedCategory !== ALL_CARDS_FILTER ? 'No matching cards found' : 'No knowledge cards yet'}</p>
+                        <p className="text-gray-400 text-xs">{searchQuery || selectedCategory !== ALL_CARDS_FILTER ? 'Try other keywords or categories' : 'Click the button below to create your first card'}</p>
                     </div>
                 )}
-                <button
-                    onClick={() => setShowAddModal(true)}
-                    className="fixed bottom-4 right-4 w-12 h-12 bg-emerald-500 text-white rounded-full shadow-lg hover:bg-emerald-600 transition-all flex items-center justify-center z-20"
-                    title="添加新卡片"
-                >
-                    <Plus className="w-5 h-5" />
-                </button>
+
+                {/* AI Robot Button (Left Bottom) */}
+                {!aiSelectionMode && !manageModeState?.isManageMode && (
+                    <button
+                        onClick={handleAiRobotClick}
+                        className="fixed bottom-4 left-4 hover:scale-105 active:scale-95 transition-transform z-20 group"
+                        title="Select cards for AI chat"
+                    >
+                        <AIRobotIcon size={48} />
+                        <span className="absolute bottom-14 left-1/2 transform -translate-x-1/2 bg-gray-900 text-white text-xs px-2 py-1 rounded whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
+                            Select cards for AI chat
+                        </span>
+                    </button>
+                )}
+
+                {/* AI Selection Mode: Confirm/Cancel Buttons */}
+                {aiSelectionMode && (
+                    <div className="fixed bottom-4 left-4 flex gap-2 z-20">
+                        <button
+                            onClick={handleAiSelectionCancel}
+                            className="px-4 py-2 bg-gray-100 text-gray-700 text-sm rounded-lg hover:bg-gray-200 transition-colors font-medium border border-gray-300"
+                        >
+                            Cancel
+                        </button>
+                        <button
+                            onClick={handleAiSelectionConfirm}
+                            disabled={aiSelectedCards.length === 0}
+                            className="px-4 py-2 bg-emerald-500 text-white text-sm rounded-lg hover:bg-emerald-600 transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                        >
+                            <AIRobotIcon size={20} />
+                            Confirm ({aiSelectedCards.length})
+                        </button>
+                    </div>
+                )}
+
+                {/* Add New Card Button (Right Bottom) */}
+                {!aiSelectionMode && (
+                    <button
+                        onClick={() => setShowAddModal(true)}
+                        className="fixed bottom-4 right-4 w-12 h-12 bg-emerald-500 text-white rounded-full shadow-lg hover:bg-emerald-600 transition-all flex items-center justify-center z-20"
+                        title="Add new card"
+                    >
+                        <Plus className="w-5 h-5" />
+                    </button>
+                )}
             </div>
+
+            {/* New Chat Dialog */}
+            {showNewChatDialog && createPortal(
+                <ConfirmDialog
+                    isOpen={showNewChatDialog}
+                    title="Start New Chat with Selected Cards?"
+                    message="You have an existing conversation. What would you like to do?"
+                    confirmText="Delete & Start New"
+                    cancelText="Continue Current Chat"
+                    onConfirm={handleDeleteAndNewChat}
+                    onCancel={handleContinueChat}
+                    cancelButtonStyle="primary"
+                    additionalActions={[
+                        {
+                            text: 'Archive & Start New',
+                            onClick: handleArchiveAndNewChat,
+                            className: 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50'
+                        }
+                    ]}
+                />,
+                document.body
+            )}
         </div>
     );
 };

@@ -1,89 +1,110 @@
-// components/common/ConfirmDialog.tsx
+// src/components/modals/ConfirmDialog.tsx
 import React from 'react';
-import { AlertTriangle, X } from 'lucide-react';
+import { createPortal } from 'react-dom';
+import { X } from 'lucide-react';
+
+interface AdditionalAction {
+    text: string;
+    onClick: () => void;
+    className?: string;
+}
 
 interface ConfirmDialogProps {
     isOpen: boolean;
-    title?: string;
+    title: string;
     message: string;
     confirmText?: string;
     cancelText?: string;
     onConfirm: () => void;
     onCancel: () => void;
+    additionalActions?: AdditionalAction[];
+    cancelButtonStyle?: 'default' | 'primary';
 }
 
 export const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
                                                                 isOpen,
-                                                                title = 'Confirm Action',
+                                                                title,
                                                                 message,
                                                                 confirmText = 'Confirm',
                                                                 cancelText = 'Cancel',
                                                                 onConfirm,
-                                                                onCancel
+                                                                onCancel,
+                                                                additionalActions = [],
+                                                                cancelButtonStyle = 'default'
                                                             }) => {
     if (!isOpen) return null;
 
-    return (
-        <div
-            className="fixed inset-0 flex items-center justify-center z-[10002]"
-            style={{
-                backgroundColor: 'rgba(0, 0, 0, 0.6)',
-                backdropFilter: 'blur(4px)'
-            }}
-            onClick={(e) => {
-                e.stopPropagation();  // 阻止点击事件冒泡
-            }}
-        >
+    return createPortal(
+        <div className="fixed inset-0 z-[999999] flex items-center justify-center">
+            {/* Backdrop */}
             <div
-                className="bg-white rounded-xl shadow-2xl max-w-sm w-full mx-4 overflow-hidden"
-                onClick={(e) => e.stopPropagation()}  // 确保对话框内点击也不冒泡
-            >
+                className="absolute inset-0 bg-black/50 backdrop-blur-sm"
+                onClick={onCancel}
+            />
 
-                {/* 👇 添加：右上角关闭按钮 */}
-                <div className="relative">
-                    <button
-                        onClick={onCancel}
-                        className="absolute top-3 right-3 text-gray-400 hover:text-gray-600 transition-colors z-10"
-                    >
-                        <X className="w-5 h-5" />
-                    </button>
-                </div>
-
-                <div className="p-4 flex items-start gap-3">
-                    <div className="flex-shrink-0 w-10 h-10 rounded-full bg-yellow-100 flex items-center justify-center">
-                        <AlertTriangle className="w-5 h-5 text-yellow-600" />
-                    </div>
-                    <div className="flex-1 pr-6">
-                        <h3 className="text-base font-semibold text-gray-900 mb-1">
+            {/* Dialog */}
+            <div className="relative bg-white rounded-xl shadow-2xl max-w-md w-full mx-4 overflow-hidden">
+                {/* Header */}
+                <div className="px-6 py-4 border-b border-gray-200">
+                    <div className="flex items-center justify-between">
+                        <h3 className="text-lg font-semibold text-gray-900">
                             {title}
                         </h3>
-                        <p className="text-sm text-gray-600">
-                            {message}
-                        </p>
+                        <button
+                            onClick={onCancel}
+                            className="text-gray-400 hover:text-gray-600 transition-colors"
+                        >
+                            <X className="w-5 h-5" />
+                        </button>
                     </div>
                 </div>
 
-                <div className="px-4 pb-4 flex justify-end gap-2">
-                    <button
-                        onClick={(e) => {
-                            e.stopPropagation();  // 阻止事件冒泡
-                            onCancel();
-                        }}
-                        className="px-4 py-2 border border-gray-300 rounded-lg text-sm hover:bg-gray-50 transition-colors"
-                    >
-                        {cancelText}
-                    </button>
-                    <button
-                        onClick={(e) => {
-                            e.stopPropagation();  // 阻止事件冒泡
-                            onConfirm();
-                        }}
-                        className="px-4 py-2 bg-red-500 text-white rounded-lg text-sm hover:bg-red-600 transition-colors"
-                    >
-                        {confirmText}
-                    </button>
+                {/* Content */}
+                <div className="px-6 py-4">
+                    <p className="text-sm text-gray-600 leading-relaxed">
+                        {message}
+                    </p>
+                </div>
+
+                {/* Actions */}
+                <div className="px-6 py-4 bg-gray-50 border-t border-gray-200">
+                    <div className="flex flex-col gap-2">
+                        {/* Primary Action */}
+                        <button
+                            onClick={onConfirm}
+                            className="w-full px-4 py-2 bg-red-500 text-white text-sm font-medium rounded-lg hover:bg-red-600 transition-colors"
+                        >
+                            {confirmText}
+                        </button>
+
+                        {/* Additional Actions */}
+                        {additionalActions.map((action, index) => (
+                            <button
+                                key={index}
+                                onClick={action.onClick}
+                                className={`w-full px-4 py-2 text-sm font-medium rounded-lg transition-colors ${
+                                    action.className || 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                                }`}
+                            >
+                                {action.text}
+                            </button>
+                        ))}
+
+                        {/* Cancel */}
+                        <button
+                            onClick={onCancel}
+                            className={`w-full px-4 py-2 text-sm font-medium rounded-lg transition-colors ${
+                                cancelButtonStyle === 'primary'
+                                    ? 'bg-emerald-500 text-white hover:bg-emerald-600'
+                                    : 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50'
+                            }`}
+                        >
+                            {cancelText}
+                        </button>
+                    </div>
                 </div>
             </div>
-        </div>
+        </div>,
+        document.body
     );
 };

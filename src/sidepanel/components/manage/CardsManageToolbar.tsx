@@ -1,9 +1,11 @@
+// src/components/cards/CardsManageToolbar.tsx
 import React, { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { Trash2, Download, FolderPlus, MessageSquare } from 'lucide-react';
 import { useStore } from '../../store';
 import { CategorySelector } from '../layout/CategorySelector';
 import { ConfirmDialog } from '../modals/ConfirmDialog';
+import { STORAGE_KEYS } from '../../utils/constants';
 
 interface CardsManageToolbarProps {
     selectedCards: string[];
@@ -14,20 +16,85 @@ export const CardsManageToolbar: React.FC<CardsManageToolbarProps> = ({
                                                                           selectedCards,
                                                                           onActionComplete
                                                                       }) => {
-    const { cards, deleteCard, updateCard, setSelectedCardsForChat, setCurrentView } = useStore();
+    const {
+        cards,
+        deleteCard,
+        updateCard,
+        selectedCardsForChat,
+        setSelectedCardsForChat,
+        setCurrentView,
+        messages,
+        clearMessages,
+        archiveCurrentChat,
+        saveCurrentChat
+    } = useStore();
+
     const [showCategorySelector, setShowCategorySelector] = useState(false);
     const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+    const [showNewChatDialog, setShowNewChatDialog] = useState(false);
     const categoryButtonRef = useRef<HTMLButtonElement>(null);
     const [buttonPosition, setButtonPosition] = useState({ top: 0, right: 0 });
 
-    // 过滤掉不存在的卡片 ID（防止删除分类后状态不同步）
+    // Filter out non-existent card IDs
     const validSelectedCards = selectedCards.filter(id =>
         cards.some(card => card.id === id)
     );
 
-    const handleLinkToChat = () => {
+    const handleLinkToChat = async () => {
+        if (validSelectedCards.length === 0) {
+            alert('Please select at least one card');
+            return;
+        }
+
+        // Check if there's an existing conversation in storage
+        const result = await chrome.storage.local.get(STORAGE_KEYS.CURRENT_CHAT);
+        const hasExistingConversation = result[STORAGE_KEYS.CURRENT_CHAT]?.messages?.length > 0 || messages.length > 0;
+
+        if (hasExistingConversation) {
+            // Show dialog to choose action
+            setShowNewChatDialog(true);
+        } else {
+            // Direct to chat with selected cards
+            setSelectedCardsForChat(validSelectedCards);
+            onActionComplete();
+            // Use setTimeout to ensure state is updated before navigation
+            setTimeout(() => {
+                setCurrentView('chat');
+            }, 0);
+        }
+    };
+
+    const handleContinueChat = async () => {
+        // Add new cards to existing selected cards (remove duplicates)
+        const combinedCards = [...new Set([...selectedCardsForChat, ...validSelectedCards])];
+
+        // Update state
+        setSelectedCardsForChat(combinedCards);
+
+        // Save to storage using store's method
+        await saveCurrentChat();
+
+        setShowNewChatDialog(false);
+        onActionComplete();
+
+        // Navigate after ensuring state is persisted
+        setCurrentView('chat');
+    };
+
+    const handleDeleteAndNewChat = async () => {
+        clearMessages();
+        setSelectedCardsForChat(validSelectedCards);
+        await chrome.storage.local.remove(STORAGE_KEYS.CURRENT_CHAT);
+        setCurrentView('chat');
+        setShowNewChatDialog(false);
+        onActionComplete();
+    };
+
+    const handleArchiveAndNewChat = async () => {
+        await archiveCurrentChat();
         setSelectedCardsForChat(validSelectedCards);
         setCurrentView('chat');
+        setShowNewChatDialog(false);
         onActionComplete();
     };
 
@@ -52,7 +119,7 @@ export const CardsManageToolbar: React.FC<CardsManageToolbarProps> = ({
         linkElement.click();
     };
 
-    // 获取选中卡片的分类情况
+    // Get selected cards category
     const getSelectedCardsCategory = (): string => {
         if (validSelectedCards.length === 0) return '';
 
@@ -63,9 +130,8 @@ export const CardsManageToolbar: React.FC<CardsManageToolbarProps> = ({
         return allSame ? (firstCategory || 'Other') : '';
     };
 
-    // 处理分类变更
+    // Handle category change
     const handleCategoryChange = async (newCategory: string) => {
-        // 批量更新所有选中卡片的分类
         for (const cardId of validSelectedCards) {
             await updateCard(cardId, { category: newCategory });
         }
@@ -73,7 +139,7 @@ export const CardsManageToolbar: React.FC<CardsManageToolbarProps> = ({
         onActionComplete();
     };
 
-    // 计算按钮位置
+    // Calculate button position
     useEffect(() => {
         if (showCategorySelector && categoryButtonRef.current) {
             const rect = categoryButtonRef.current.getBoundingClientRect();
@@ -84,7 +150,7 @@ export const CardsManageToolbar: React.FC<CardsManageToolbarProps> = ({
         }
     }, [showCategorySelector]);
 
-    // 点击外部关闭
+    // Click outside to close
     useEffect(() => {
         const handleClickOutside = (event: MouseEvent) => {
             const target = event.target as HTMLElement;
@@ -110,7 +176,7 @@ export const CardsManageToolbar: React.FC<CardsManageToolbarProps> = ({
         <>
             <div className="mt-3 pt-3 border-t border-gray-200 flex items-center justify-between">
                 <span className="text-xs text-gray-600">
-                    已选择 {validSelectedCards.length} 张卡片
+                    Selected {validSelectedCards.length} card(s)
                 </span>
                 <div className="flex gap-1">
                     <button
@@ -138,7 +204,7 @@ export const CardsManageToolbar: React.FC<CardsManageToolbarProps> = ({
                         Delete
                     </button>
 
-                    {/* 分类按钮 */}
+                    {/* Category button */}
                     <button
                         ref={categoryButtonRef}
                         onClick={() => setShowCategorySelector(!showCategorySelector)}
@@ -153,7 +219,7 @@ export const CardsManageToolbar: React.FC<CardsManageToolbarProps> = ({
                         Category
                     </button>
 
-                    {/* 使用Portal渲染CategorySelector到body */}
+                    {/* Render CategorySelector to body using Portal */}
                     {showCategorySelector && createPortal(
                         <div
                             className="category-selector-portal"
@@ -168,7 +234,7 @@ export const CardsManageToolbar: React.FC<CardsManageToolbarProps> = ({
                             <CategorySelector
                                 value={currentCategory}
                                 onChange={handleCategoryChange}
-                                placeholder={currentCategory === '' ? '选择分类' : currentCategory}
+                                placeholder={currentCategory === '' ? 'Select category' : currentCategory}
                                 dropDirection="down"
                                 manageMode={true}
                                 onCancel={() => setShowCategorySelector(false)}
@@ -179,12 +245,12 @@ export const CardsManageToolbar: React.FC<CardsManageToolbarProps> = ({
                 </div>
             </div>
 
-            {/* 批量删除确认对话框 - 使用 Portal 渲染到 body */}
+            {/* Batch delete confirmation dialog */}
             {showDeleteConfirm && createPortal(
                 <ConfirmDialog
                     isOpen={showDeleteConfirm}
                     title="Delete Multiple Cards"
-                    message={`Are you sure you want to delete ${validSelectedCards.length} card(s)？This action can’t be undone.`}
+                    message={`Are you sure you want to delete ${validSelectedCards.length} card(s)? This action can't be undone.`}
                     confirmText="Delete"
                     cancelText="Cancel"
                     onConfirm={handleConfirmDelete}
@@ -192,9 +258,28 @@ export const CardsManageToolbar: React.FC<CardsManageToolbarProps> = ({
                 />,
                 document.body
             )}
+
+            {/* New Chat Dialog */}
+            {showNewChatDialog && createPortal(
+                <ConfirmDialog
+                    isOpen={showNewChatDialog}
+                    title="Start New Chat with Selected Cards?"
+                    message="You have an existing conversation. What would you like to do?"
+                    confirmText="Delete & Start New"
+                    cancelText="Continue Current Chat"
+                    onConfirm={handleDeleteAndNewChat}
+                    onCancel={handleContinueChat}
+                    cancelButtonStyle="primary"
+                    additionalActions={[
+                        {
+                            text: 'Archive & Start New',
+                            onClick: handleArchiveAndNewChat,
+                            className: 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50'
+                        }
+                    ]}
+                />,
+                document.body
+            )}
         </>
     );
 };
-
-
-
