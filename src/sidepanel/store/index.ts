@@ -8,6 +8,7 @@ import {
     STORAGE_KEYS,
     CARD_COLORS
 } from '../utils/constants';
+import { generateArchiveId } from '../utils/idGenerator';
 
 interface SelectionPayload {
     text: string;
@@ -33,6 +34,9 @@ interface AppState {
     selectedCardsForChat: string[];
     isTyping: boolean;
     chatArchives: ChatArchive[];
+
+    // Settings
+    showCardNumbers: boolean;
 
     // UI
     currentView: 'cards' | 'chat' | 'settings';
@@ -70,8 +74,12 @@ interface AppState {
     archiveCurrentChat: () => Promise<void>;
     loadArchive: (archiveId: string) => void;
     deleteArchive: (archiveId: string) => Promise<void>;
-    // exportArchive: (archiveId: string) => void;
     loadChatArchives: () => Promise<void>;
+
+    // Settings Actions
+    loadSettings: () => Promise<void>;
+    setShowCardNumbers: (show: boolean) => Promise<void>;
+    resetCardNumbers: () => Promise<void>;
 
     // UI Actions
     setCurrentView: (view: 'cards' | 'chat' | 'settings') => void;
@@ -95,6 +103,9 @@ export const useStore = create<AppState>((set, get) => ({
     isTyping: false,
     chatArchives: [],
 
+    // === Settings State ===
+    showCardNumbers: true,  // 默认显示卡片编号
+
     // === UI State ===
     currentView: 'cards',
     showAddModal: false,
@@ -114,7 +125,7 @@ export const useStore = create<AppState>((set, get) => ({
                             text: newValue.text,
                             url: newValue.url,
                             needsAISummarize: newValue.needsAISummarize || false,
-                            needsContentSummary: newValue.needsContentSummary !== false  // ← 添加这行
+                            needsContentSummary: newValue.needsContentSummary !== false
                         },
                         showAddModal: true
                     });
@@ -137,7 +148,7 @@ export const useStore = create<AppState>((set, get) => ({
                         text: pendingData.text,
                         url: pendingData.url,
                         needsAISummarize: pendingData.needsAISummarize || false,
-                        needsContentSummary: pendingData.needsContentSummary !== false  // ← 添加这行
+                        needsContentSummary: pendingData.needsContentSummary !== false
                     },
                     showAddModal: true
                 });
@@ -153,11 +164,10 @@ export const useStore = create<AppState>((set, get) => ({
         try {
             const result = await chrome.storage.local.get([STORAGE_KEYS.CARDS, STORAGE_KEYS.USER_CATEGORIES]);
 
-            console.log('Loading from storage:', result);
-
             if (!result[STORAGE_KEYS.CARDS] || !Array.isArray(result[STORAGE_KEYS.CARDS])) {
                 const sampleCard: KnowledgeCard = {
-                    id: 'sample-card-1',
+                    id: 'cd-sample-00',
+                    displayNumber: 0,
                     title: '欢迎使用知识卡片!',
                     content: '这是一个示例卡片。你可以使用右键菜单或快捷键从任何网页上捕获选中的文本来创建新卡片。',
                     url: '',
@@ -169,11 +179,9 @@ export const useStore = create<AppState>((set, get) => ({
 
                 await chrome.storage.local.set({ [STORAGE_KEYS.CARDS]: [sampleCard] });
                 set({ cards: [sampleCard] });
-                console.log('Created sample card');
             } else {
                 const loadedCards = result[STORAGE_KEYS.CARDS];
                 set({ cards: loadedCards });
-                console.log(`Loaded ${loadedCards.length} cards from storage`);
             }
 
             if (result[STORAGE_KEYS.USER_CATEGORIES] && Array.isArray(result[STORAGE_KEYS.USER_CATEGORIES])) {
@@ -181,7 +189,6 @@ export const useStore = create<AppState>((set, get) => ({
                     typeof c === 'string' && c.trim() !== ''
                 );
                 set({ userCategories: loadedUserCategories });
-                console.log(`Loaded ${loadedUserCategories.length} user categories`);
             }
         } catch (error) {
             console.error('Error loading store:', error);
@@ -196,9 +203,6 @@ export const useStore = create<AppState>((set, get) => ({
 
             set({ cards: newCards });
             await chrome.storage.local.set({ [STORAGE_KEYS.CARDS]: newCards });
-
-            console.log('Card added successfully:', card.id);
-            console.log('Total cards now:', newCards.length);
         } catch (error) {
             console.error('Error adding card:', error);
             const originalCards = get().cards.filter(c => c.id !== card.id);
@@ -215,8 +219,6 @@ export const useStore = create<AppState>((set, get) => ({
 
             set({ cards: newCards });
             await chrome.storage.local.set({ [STORAGE_KEYS.CARDS]: newCards });
-
-            console.log('Card updated:', id);
         } catch (error) {
             console.error('Error updating card:', error);
         }
@@ -229,8 +231,6 @@ export const useStore = create<AppState>((set, get) => ({
 
             set({ cards: newCards });
             await chrome.storage.local.set({ [STORAGE_KEYS.CARDS]: newCards });
-
-            console.log('Card deleted:', id);
         } catch (error) {
             console.error('Error deleting card:', error);
         }
@@ -248,7 +248,6 @@ export const useStore = create<AppState>((set, get) => ({
                 const newUserCategories = [...state.userCategories, newCategory];
                 set({ userCategories: newUserCategories });
                 await chrome.storage.local.set({ [STORAGE_KEYS.USER_CATEGORIES]: newUserCategories });
-                console.log('Category added:', newCategory);
             }
         } catch (error) {
             console.error('Error adding category:', error);
@@ -285,8 +284,6 @@ export const useStore = create<AppState>((set, get) => ({
                 [STORAGE_KEYS.CARDS]: newCards,
                 [STORAGE_KEYS.USER_CATEGORIES]: newUserCategories
             });
-
-            console.log('Category and cards deleted:', category);
         } catch (error) {
             console.error('Error deleting category and cards:', error);
         }
@@ -315,8 +312,6 @@ export const useStore = create<AppState>((set, get) => ({
                 [STORAGE_KEYS.CARDS]: newCards,
                 [STORAGE_KEYS.USER_CATEGORIES]: newUserCategories
             });
-
-            console.log('Category deleted and cards moved:', category);
         } catch (error) {
             console.error('Error moving cards and deleting category:', error);
         }
@@ -376,7 +371,6 @@ export const useStore = create<AppState>((set, get) => ({
             await chrome.storage.local.set({
                 [STORAGE_KEYS.CURRENT_CHAT]: currentChat
             });
-            console.log('[Store] Current chat saved');
         } catch (error) {
             console.error('[Store] Error saving current chat:', error);
         }
@@ -398,7 +392,7 @@ export const useStore = create<AppState>((set, get) => ({
                 : 'Untitled Chat';
 
             const archive: ChatArchive = {
-                id: `archive_${Date.now()}`,
+                id: generateArchiveId(),
                 title,
                 messages: state.messages,
                 selectedCards: state.selectedCardsForChat,
@@ -462,22 +456,6 @@ export const useStore = create<AppState>((set, get) => ({
         }
     },
 
-    // exportArchive: (archiveId: string) => {
-    //     const state = get();
-    //     const archive = state.chatArchives.find(a => a.id === archiveId);
-    //
-    //     if (archive) {
-    //         const dataStr = JSON.stringify(archive, null, 2);
-    //         const dataUri = 'data:application/json;charset=utf-8,' + encodeURIComponent(dataStr);
-    //         const linkElement = document.createElement('a');
-    //         linkElement.setAttribute('href', dataUri);
-    //         linkElement.setAttribute('download', `chat_${archive.id}.json`);
-    //         linkElement.click();
-    //         console.log('[Store] Archive exported:', archiveId);
-    //     }
-    // },
-
-
     loadChatArchives: async () => {
         try {
             const result = await chrome.storage.local.get([STORAGE_KEYS.CHAT_ARCHIVES]);
@@ -488,6 +466,54 @@ export const useStore = create<AppState>((set, get) => ({
         } catch (error) {
             console.error('[Store] Error loading archives:', error);
             set({ chatArchives: [] });
+        }
+    },
+
+    // === Settings Actions ===
+
+    loadSettings: async () => {
+        try {
+            const result = await chrome.storage.local.get([STORAGE_KEYS.SHOW_CARD_NUMBERS]);
+            const showCardNumbers = result[STORAGE_KEYS.SHOW_CARD_NUMBERS] !== false; // 默认为 true
+            set({ showCardNumbers });
+        } catch (error) {
+            console.error('[Store] Error loading settings:', error);
+        }
+    },
+
+    setShowCardNumbers: async (show: boolean) => {
+        try {
+            await chrome.storage.local.set({ [STORAGE_KEYS.SHOW_CARD_NUMBERS]: show });
+            set({ showCardNumbers: show });
+        } catch (error) {
+            console.error('[Store] Error setting show card numbers:', error);
+        }
+    },
+
+    resetCardNumbers: async () => {
+        try {
+            const state = get();
+            const cards = [...state.cards].sort((a, b) => a.timestamp - b.timestamp);
+
+            // 使用计数器，只为非示例卡片分配编号
+            let nextNumber = 1;
+            const updatedCards = cards.map((card) => {
+                if (card.id === 'cd-sample-00' || card.id === 'sample-card-1') {
+                    return { ...card, displayNumber: 0 };
+                }
+                const displayNumber = nextNumber;
+                nextNumber++;
+                return { ...card, displayNumber };
+            });
+
+            // 保存更新后的卡片
+            set({ cards: updatedCards });
+            await chrome.storage.local.set({ [STORAGE_KEYS.CARDS]: updatedCards });
+
+            // 重置计数器（nextNumber 现在是下一个应该使用的编号）
+            await chrome.storage.local.set({ [STORAGE_KEYS.NEXT_DISPLAY_NUMBER]: nextNumber });
+        } catch (error) {
+            console.error('[Store] Error resetting card numbers:', error);
         }
     },
 

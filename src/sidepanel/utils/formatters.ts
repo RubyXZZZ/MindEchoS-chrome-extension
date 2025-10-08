@@ -2,6 +2,19 @@ export const formatDate = (timestamp: number): string => {
     return new Date(timestamp).toLocaleDateString('zh-CN');
 };
 
+/**
+ * Format timestamp as MM/DD/YYYY for card display
+ * @param timestamp - Unix timestamp in milliseconds
+ * @returns Formatted date string (e.g., "10/08/2024")
+ */
+export const formatCardDate = (timestamp: number): string => {
+    const date = new Date(timestamp);
+    const month = date.getMonth() + 1;
+    const day = date.getDate();
+    const year = date.getFullYear();
+    return `${month}/${day}/${year}`;
+};
+
 export const formatTime = (timestamp: number): string => {
     return new Date(timestamp).toLocaleTimeString('zh-CN', {
         hour: '2-digit',

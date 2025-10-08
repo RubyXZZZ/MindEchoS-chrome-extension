@@ -6,6 +6,7 @@ import { CARD_COLORS, DEFAULT_CATEGORY, ALL_CARDS_FILTER } from '../../utils/con
 import { useAISummarizer } from '../../hooks/useAISummarizer';
 import { CategorySelector } from '../layout/CategorySelector';
 import { ConfirmDialog } from '../modals/ConfirmDialog';
+import { generateCardId, getNextDisplayNumber } from '../../utils/idGenerator';
 
 interface SelectionPayload {
     text: string;
@@ -472,8 +473,10 @@ export const AddCardModal: React.FC = () => {
         if (isEditing && editingCardData) {
             await updateCard(editingCardData.id, { ...formData });
         } else {
+            const displayNumber = await getNextDisplayNumber();
             const newCard: KnowledgeCard = {
-                id: Date.now().toString(),
+                id: generateCardId(),
+                displayNumber,
                 ...formData,
                 tags: [],
                 color: CARD_COLORS[cards.length % CARD_COLORS.length],

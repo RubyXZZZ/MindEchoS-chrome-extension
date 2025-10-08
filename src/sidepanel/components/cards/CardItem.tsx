@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
-import { Clock, Link, Trash2, Edit2, ChevronDown, ChevronUp, Copy, Check } from 'lucide-react';
+import { Link, Trash2, Edit2, ChevronDown, ChevronUp, Copy, Check } from 'lucide-react';
 import { KnowledgeCard } from '../../types/card.types';
 import { useStore } from '../../store';
-import { formatTime } from '../../utils/formatters';
+import { formatCardDate } from '../../utils/formatters';
 import { MarkdownRenderer } from '../cards/MarkdownRenderer';
 import { ConfirmDialog } from '../modals/ConfirmDialog';
 
@@ -25,7 +25,7 @@ export const CardItem: React.FC<CardItemProps> = ({
                                                       onExpand,
                                                       isOverlapping = false
                                                   }) => {
-    const { deleteCard, setEditingCard, setShowAddModal } = useStore();
+    const { deleteCard, setEditingCard, setShowAddModal, showCardNumbers } = useStore();
     const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
     const [copied, setCopied] = useState(false);
 
@@ -75,10 +75,17 @@ export const CardItem: React.FC<CardItemProps> = ({
                 rounded-xl shadow-lg hover:shadow-xl transition-all border border-white/50 
                 ${isExpanded ? 'shadow-2xl ring-2 ring-emerald-500/50 h-[400px]' : 'h-[180px]'} 
                 ${isOverlapping && !isManageMode ? 'cursor-pointer' : ''}
-                backdrop-blur-sm bg-opacity-90
+                backdrop-blur-sm bg-opacity-90 relative
             `}
             onClick={handleCardClick}
         >
+            {/* Card Number Badge - Middle of visible area when overlapped (title area) */}
+            {showCardNumbers && (
+                <div className="absolute -left-[12px] top-[25px] bg-gray-200/85 text-gray-600 px-1 py-0.5 text-[9px] font-mono font-medium shadow-sm z-10 rounded-r-sm border-r border-gray-300/30">
+                    {String(card.displayNumber).padStart(2, '0')}
+                </div>
+            )}
+
             <div className="pl-4 pr-2 pt-3 pb-1 h-full flex flex-col">
                 {/* Header */}
                 <div className="flex items-start justify-between mb-2 flex-shrink-0">
@@ -126,17 +133,17 @@ export const CardItem: React.FC<CardItemProps> = ({
                 {/* Footer */}
                 <div className="flex items-center justify-between text-[10px] text-gray-600 flex-shrink-0 mt-auto">
                     <div className="flex items-center gap-2">
-                        <span className="flex items-center gap-0.5">
-                            <Clock className="w-3 h-3" />
-                            {formatTime(card.timestamp)}
+                        <span>
+                            {formatCardDate(card.timestamp)}
                         </span>
                         {card.url && (
                             <a
                                 href={card.url}
                                 target="_blank"
                                 rel="noopener noreferrer"
-                                className="flex items-center gap-0.5 hover:text-blue-600"
+                                className="flex items-center gap-0.5 hover:text-blue-600 transition-colors"
                                 onClick={(e) => e.stopPropagation()}
+                                title="Open URL"
                             >
                                 <Link className="w-3 h-3" />
                             </a>

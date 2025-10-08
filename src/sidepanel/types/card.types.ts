@@ -2,6 +2,7 @@
 
 export interface KnowledgeCard {
     id: string;
+    displayNumber: number;
     title: string;
     content: string;
     url: string;
@@ -11,7 +12,7 @@ export interface KnowledgeCard {
     category?: string;
     relatedCards?: string[];
     color?: string;
-    source?: 'webpage' | 'selection' | 'video' | 'manual';
+    source?: 'webpage' | 'selection' | 'manual';
     favicon?: string;
 }
 

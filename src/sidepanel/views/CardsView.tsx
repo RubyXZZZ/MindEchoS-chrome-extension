@@ -318,7 +318,7 @@ export const CardsView: React.FC<CardsViewProps> = ({
                             return (
                                 <div
                                     key={card.id}
-                                    className="absolute left-2 right-2 transition-transform duration-300 ease-in-out will-change-transform"
+                                    className="absolute left-2.5 top-1 right-1.5 transition-transform duration-300 ease-in-out will-change-transform"
                                     style={{ transform: `translateY(${topPosition}px)`, zIndex: isExpanded ? 50 : index + 1 }}
                                 >
                                     <CardItem

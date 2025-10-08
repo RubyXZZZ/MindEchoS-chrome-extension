@@ -5,11 +5,18 @@ import { AddCardModal } from './sidepanel/components/modals/AddCardModal';
 import { DeleteCategoryModal } from './sidepanel/components/modals/DeleteCategoryModal';
 import { CardsView } from './sidepanel/views/CardsView';
 import { ChatView } from './sidepanel/views/ChatView';
-import { SettingsView } from './sidepanel/views/SettingsView';  // 已有导入
+import { SettingsView } from './sidepanel/views/SettingsView';
 import type { ManageState } from './sidepanel/types/manage.types';
 
 function App() {
-    const { currentView, cards, initialize, loadStore, checkForPendingSelection } = useStore();
+    const {
+        currentView,
+        cards,
+        initialize,
+        loadStore,
+        checkForPendingSelection,
+        loadSettings  // 新增：加载设置
+    } = useStore();
     const [isLoading, setIsLoading] = useState(true);
 
     const [manageState, setManageState] = useState<ManageState>({
@@ -52,6 +59,7 @@ function App() {
             try {
                 initialize();
                 await loadStore();
+                await loadSettings();  // 新增：加载设置（包括 showCardNumbers）
                 await checkForPendingSelection();
             } catch (error) {
                 console.error('Failed to initialize app:', error);
@@ -61,7 +69,7 @@ function App() {
         };
 
         initializeApp();
-    }, [initialize, loadStore, checkForPendingSelection]);
+    }, [initialize, loadStore, loadSettings, checkForPendingSelection]);
 
     if (isLoading) {
         return (
@@ -82,7 +90,6 @@ function App() {
             />
 
             <div className="flex-1 overflow-hidden relative">
-                {/* 改用独立的条件渲染 */}
                 {currentView === 'cards' && (
                     <CardsView
                         manageModeState={manageState.view === 'cards' ? {
@@ -98,7 +105,7 @@ function App() {
 
                 {currentView === 'chat' && <ChatView />}
 
-                {currentView === 'settings' && <SettingsView />}  {/* 新增 */}
+                {currentView === 'settings' && <SettingsView />}
             </div>
 
             <AddCardModal />
