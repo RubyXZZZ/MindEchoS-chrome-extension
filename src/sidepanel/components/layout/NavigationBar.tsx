@@ -18,7 +18,6 @@ export const NavigationBar: React.FC<NavigationBarProps> = ({
     const { isManageMode } = manageState;
 
     const handleLogoClick = () => {
-        console.log('[NavigationBar] Logo clicked, switching to settings');
         setCurrentView('settings');
 
         if (currentView === 'cards') {
@@ -103,10 +102,10 @@ export const NavigationBar: React.FC<NavigationBarProps> = ({
                     {/* Settings Button */}
                     <button
                         onClick={handleLogoClick}
-                        className="w-8 h-8 rounded-lg bg-gray-100 flex items-center justify-center hover:bg-gray-200 transition-colors flex-shrink-0"
+                        className="p-1.5 text-gray-500 hover:text-gray-700 transition-colors flex-shrink-0"
                         title="Settings"
                     >
-                        <Settings className="w-5 h-5 text-gray-700" />
+                        <Settings className="w-4 h-4" />
                     </button>
 
                     {/* Left Spacer */}
@@ -116,32 +115,33 @@ export const NavigationBar: React.FC<NavigationBarProps> = ({
                     <div className="relative bg-gray-200 rounded-lg p-0.5 flex flex-shrink-0">
                         {/* Sliding Green Background */}
                         <div
-                            className="absolute top-0.5 bottom-0.5 left-0.5 w-[72px] bg-emerald-500 rounded-md shadow-md transition-all duration-300 ease-out will-change-transform"
+                            className="absolute top-0.5 bottom-0.5 left-0.5 w-[72px] bg-emerald-500 rounded-md shadow-md transition-transform duration-300 ease-out"
                             style={{
-                                transform: currentView === 'cards' ? 'translateX(0)' : 'translateX(72px)'
+                                transform: currentView === 'cards' ? 'translateX(0)' : 'translateX(72px)',
+                                willChange: 'transform'
                             }}
                         />
 
                         {/* Buttons */}
                         <button
                             onClick={() => handleViewChange('cards')}
-                            className={`relative z-10 w-[72px] py-1.5 rounded-md text-xs font-medium transition-colors duration-200 ${
+                            className={`relative z-10 w-[72px] py-1.5 rounded-md text-sm font-medium transition-colors duration-300 ${
                                 currentView === 'cards'
                                     ? 'text-white'
                                     : 'text-gray-700 hover:text-gray-900'
                             }`}
                         >
-                            知识卡片
+                            Cards
                         </button>
                         <button
                             onClick={() => handleViewChange('chat')}
-                            className={`relative z-10 w-[72px] py-1.5 rounded-md text-xs font-medium transition-colors duration-200 ${
+                            className={`relative z-10 w-[72px] py-1.5 rounded-md text-sm font-medium transition-colors duration-300 ${
                                 currentView === 'chat'
                                     ? 'text-white'
                                     : 'text-gray-700 hover:text-gray-900'
                             }`}
                         >
-                            AI对话
+                            AI
                         </button>
                     </div>
 
@@ -151,7 +151,7 @@ export const NavigationBar: React.FC<NavigationBarProps> = ({
                     {/* Manage Button */}
                     <button
                         onClick={handleManageClick}
-                        className={`w-[72px] h-8 text-xs font-medium rounded-lg transition-all flex items-center justify-center gap-1 flex-shrink-0 ${
+                        className={`w-[72px] h-8 text-sm font-medium rounded-lg transition-all flex items-center justify-center gap-1 flex-shrink-0 ${
                             isManageMode
                                 ? 'bg-gray-800 text-white hover:bg-gray-900'
                                 : 'bg-emerald-500 text-white hover:bg-emerald-600'
