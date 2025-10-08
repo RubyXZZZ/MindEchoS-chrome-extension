@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { ArrowLeft, Trash2, Calendar, MessageSquare, Archive as ArchiveIcon, Hash, RotateCcw, Check } from 'lucide-react';
+import { ArrowLeft, Trash2, Calendar, MessageSquare, Archive as ArchiveIcon, Hash, RotateCcw, Check, Keyboard, Settings } from 'lucide-react';
 import { useStore } from '../store';
 import { formatTime } from '../utils/formatters';
 import { STORAGE_KEYS } from '../utils/constants';
@@ -29,9 +29,18 @@ export const SettingsView: React.FC = () => {
 
     const [showResetConfirm, setShowResetConfirm] = useState(false);
     const [resetSuccess, setResetSuccess] = useState(false);
+    const [currentShortcut, setCurrentShortcut] = useState<string>('Not set');
 
     useEffect(() => {
         loadChatArchives();
+
+        // 获取当前快捷键（保持系统原生显示）
+        chrome.commands.getAll((commands) => {
+            const extractCommand = commands.find(cmd => cmd.name === 'extract-knowledge');
+            if (extractCommand && extractCommand.shortcut) {
+                setCurrentShortcut(extractCommand.shortcut);
+            }
+        });
     }, []);
 
     const handleLoadArchive = (archiveId: string) => {
@@ -51,7 +60,6 @@ export const SettingsView: React.FC = () => {
             try {
                 await chrome.storage.local.set({ [STORAGE_KEYS.CHAT_ARCHIVES]: [] });
                 await loadChatArchives();
-                console.log('[SettingsView] All archives cleared');
             } catch (error) {
                 console.error('[SettingsView] Error clearing archives:', error);
             }
@@ -67,6 +75,10 @@ export const SettingsView: React.FC = () => {
         } catch (error) {
             console.error('[SettingsView] Error resetting card numbers:', error);
         }
+    };
+
+    const handleOpenShortcutSettings = () => {
+        chrome.tabs.create({ url: 'chrome://extensions/shortcuts' });
     };
 
     return (
@@ -200,6 +212,41 @@ export const SettingsView: React.FC = () => {
                                     <p className="text-xs text-gray-500 mt-2">
                                         Renumber all cards sequentially based on creation time. This will eliminate any gaps in numbering.
                                     </p>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Keyboard Shortcuts Section */}
+                        <div className="bg-white rounded-lg border border-gray-200 p-4">
+                            <div className="flex items-center gap-2 mb-3">
+                                <Keyboard className="w-4 h-4 text-gray-600" />
+                                <h3 className="text-sm font-semibold text-gray-900">Keyboard Shortcuts</h3>
+                            </div>
+
+                            <div className="space-y-3">
+                                <div className="flex items-center justify-between py-2">
+                                    <div className="flex-1">
+                                        <p className="text-sm text-gray-700 font-medium">Extract Knowledge</p>
+                                        <p className="text-xs text-gray-500 mt-0.5">
+                                            Quickly save selected text as a card
+                                        </p>
+                                    </div>
+                                    <div className="ml-4 flex-shrink-0">
+                                        <kbd className="inline-block px-3 py-2 bg-gray-100 border border-gray-300 rounded-md text-base font-semibold text-gray-800 shadow-sm leading-relaxed"
+                                             style={{ fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif' }}>
+                                            {currentShortcut}
+                                        </kbd>
+                                    </div>
+                                </div>
+
+                                <div className="pt-2 border-t border-gray-100">
+                                    <button
+                                        onClick={handleOpenShortcutSettings}
+                                        className="w-full px-4 py-2 bg-blue-50 text-blue-700 text-sm rounded-lg hover:bg-blue-100 border border-blue-200 font-medium flex items-center justify-center gap-2 transition-colors"
+                                    >
+                                        <Settings className="w-4 h-4" />
+                                        Customize Shortcuts
+                                    </button>
                                 </div>
                             </div>
                         </div>

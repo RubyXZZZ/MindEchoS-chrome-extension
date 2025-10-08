@@ -32,7 +32,7 @@
       "128": "icon-128.png"
     }
   },
-  "options_page": "index.html",
+
   "side_panel": {
     "default_path": "index.html"
   },
