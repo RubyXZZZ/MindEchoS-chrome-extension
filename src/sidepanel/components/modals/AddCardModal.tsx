@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { X, Save, FileText, Globe, Video, Loader2 } from 'lucide-react';
+import { X, Save, Type, Globe, Loader2 } from 'lucide-react';
 import { useStore } from '../../store';
 import { KnowledgeCard } from '../../types/card.types';
 import { CARD_COLORS, DEFAULT_CATEGORY, ALL_CARDS_FILTER } from '../../utils/constants';
@@ -36,7 +36,7 @@ export const AddCardModal: React.FC = () => {
     const [extractError, setExtractError] = useState<string>('');
     const [showCloseConfirm, setShowCloseConfirm] = useState(false);
     const [showSaveConfirm, setShowSaveConfirm] = useState(false);
-    const [forceHideLoading, setForceHideLoading] = useState(false);  // 强制隐藏 loading
+    const [forceHideLoading, setForceHideLoading] = useState(false);
 
     const {
         summarizeTextStreaming,
@@ -162,7 +162,6 @@ export const AddCardModal: React.FC = () => {
 
     useEffect(() => {
         if (!showAddModal) {
-            // Modal 关闭时立即强制隐藏所有 loading
             setForceHideLoading(true);
             setExtractingSelection(false);
             setExtractingWebpage(false);
@@ -170,7 +169,6 @@ export const AddCardModal: React.FC = () => {
             setShowCloseConfirm(false);
             setShowSaveConfirm(false);
 
-            // 延迟清理其他状态
             setTimeout(() => {
                 if (editingCard) setEditingCard(null);
                 if (initialSelection) setInitialSelection(null);
@@ -178,7 +176,6 @@ export const AddCardModal: React.FC = () => {
                 streamingTitle.current = '';
                 streamingContent.current = '';
 
-                // 中断可能还在运行的 AI
                 if (abortController.current) {
                     abortController.current.abort();
                     abortController.current = null;
@@ -189,7 +186,6 @@ export const AddCardModal: React.FC = () => {
             return;
         }
 
-        // Modal 打开时重置强制隐藏标志
         setForceHideLoading(false);
 
         if (editingCardData) {
@@ -269,14 +265,14 @@ export const AddCardModal: React.FC = () => {
                     }));
                 }
             } else {
-                setExtractError(response?.error || '无法获取选中内容');
+                setExtractError(response?.error || 'Unable to get selection');
             }
         } catch (error: any) {
             if (error.name === 'AbortError' || abortController.current?.signal.aborted) {
                 console.log('[AddCardModal] Selection streaming aborted by user');
             } else {
                 console.error('[AddCardModal] Failed to extract selection:', error);
-                setExtractError('提取失败，请重试');
+                setExtractError('Extraction failed, please try again');
             }
         } finally {
             setExtractingSelection(false);
@@ -336,14 +332,14 @@ export const AddCardModal: React.FC = () => {
                     }));
                 }
             } else {
-                setExtractError(response?.error || '无法提取网页内容');
+                setExtractError(response?.error || 'Unable to extract webpage');
             }
         } catch (error: any) {
             if (error.name === 'AbortError' || abortController.current?.signal.aborted) {
                 console.log('[AddCardModal] Webpage streaming aborted by user');
             } else {
                 console.error('[AddCardModal] Failed to extract webpage:', error);
-                setExtractError('提取失败，请重试');
+                setExtractError('Extraction failed, please try again');
             }
         } finally {
             setExtractingWebpage(false);
@@ -351,11 +347,13 @@ export const AddCardModal: React.FC = () => {
         }
     };
 
-    const handleExtractVideo = () => {
-        setExtractError('视频提取功能开发中，敬请期待');
-    };
-
     const handleSave = async () => {
+        // Validate title
+        if (!formData.title.trim()) {
+            alert('Please enter a title');
+            return;
+        }
+
         const isProcessing = extractingSelection || extractingWebpage || isAIProcessing;
 
         if (isProcessing) {
@@ -367,14 +365,6 @@ export const AddCardModal: React.FC = () => {
     };
 
     const performSave = async () => {
-        if (!formData.title.trim() && !isEditing) {
-            formData.title = formData.content.substring(0, 30) + (formData.content.length > 30 ? '...' : '');
-        }
-        if (!formData.title.trim()) {
-            alert('请输入标题');
-            return;
-        }
-
         if (isEditing && editingCardData) {
             await updateCard(editingCardData.id, { ...formData });
         } else {
@@ -414,43 +404,43 @@ export const AddCardModal: React.FC = () => {
     return (
         <>
             <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-[10000]">
-                <div className="bg-white rounded-xl shadow-2xl max-w-2xl w-full max-h-[90vh] flex flex-col relative z-[10001]">
-                    <div className="p-4 border-b flex items-center justify-between flex-shrink-0">
-                        <h2 className="text-lg font-semibold">{isEditing ? '编辑知识卡片' : '添加知识卡片'}</h2>
+                <div className="bg-white rounded-xl shadow-2xl max-w-lg w-full max-h-[90vh] flex flex-col relative z-[10001]">
+                    <div className="px-4 py-3 border-b flex items-center justify-between flex-shrink-0">
+                        <h2 className="text-base font-semibold">{isEditing ? 'Edit Card' : 'New Card'}</h2>
                         <button
                             onClick={handleClose}
                             className="text-gray-500 hover:text-gray-700"
-                            title="关闭"
+                            title="Close"
                         >
                             <X className="w-5 h-5" />
                         </button>
                     </div>
 
-                    <div className="p-4 space-y-4 overflow-y-auto flex-grow">
+                    <div className="p-4 space-y-3 overflow-y-auto flex-grow">
                         {!isEditing && (
                             <div className="space-y-2">
                                 <label className="block text-sm font-medium text-gray-700">
-                                    智能提取内容
+                                    AI Extract
                                     {isAIChecking && (
-                                        <span className="ml-2 text-xs text-blue-600">🔄 检查 AI 可用性...</span>
+                                        <span className="ml-2 text-xs text-blue-600">🔄 Checking AI...</span>
                                     )}
                                     {!isAIChecking && isAIAvailable && (
-                                        <span className="ml-2 text-xs text-green-600">✓ AI 可用</span>
+                                        <span className="ml-2 text-xs text-green-600">✓ AI Ready</span>
                                     )}
                                     {!isAIChecking && !isAIAvailable && (
-                                        <span className="ml-2 text-xs text-yellow-600">⚠ AI 不可用（将使用原文）</span>
+                                        <span className="ml-2 text-xs text-yellow-600">⚠ AI Unavailable</span>
                                     )}
                                 </label>
-                                <div className="grid grid-cols-3 gap-2">
+                                <div className="grid grid-cols-2 gap-2">
                                     <button
                                         onClick={handleExtractSelection}
                                         disabled={isAnyLoading || isAIChecking}
-                                        className="relative px-3 py-2.5 bg-blue-500 text-white text-sm rounded-lg hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 transition-colors"
+                                        className="px-3 py-2.5 bg-slate-500 text-white text-sm rounded-lg hover:bg-slate-600 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 transition-colors"
                                     >
                                         {extractingSelection ? (
                                             <Loader2 className="w-4 h-4 animate-spin" />
                                         ) : (
-                                            <FileText className="w-4 h-4" />
+                                            <Type className="w-4 h-4" />
                                         )}
                                         <span>Selection</span>
                                     </button>
@@ -458,7 +448,7 @@ export const AddCardModal: React.FC = () => {
                                     <button
                                         onClick={handleExtractWebpage}
                                         disabled={isAnyLoading || isAIChecking}
-                                        className="px-3 py-2.5 bg-green-500 text-white text-sm rounded-lg hover:bg-green-600 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 transition-colors"
+                                        className="px-3 py-2.5 bg-teal-500 text-white text-sm rounded-lg hover:bg-teal-600 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 transition-colors"
                                     >
                                         {extractingWebpage ? (
                                             <Loader2 className="w-4 h-4 animate-spin" />
@@ -466,15 +456,6 @@ export const AddCardModal: React.FC = () => {
                                             <Globe className="w-4 h-4" />
                                         )}
                                         <span>Webpage</span>
-                                    </button>
-
-                                    <button
-                                        onClick={handleExtractVideo}
-                                        disabled={isAnyLoading || isAIChecking}
-                                        className="px-3 py-2.5 bg-purple-500 text-white text-sm rounded-lg hover:bg-purple-600 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 transition-colors"
-                                    >
-                                        <Video className="w-4 h-4" />
-                                        <span>Video</span>
                                     </button>
                                 </div>
 
@@ -487,38 +468,41 @@ export const AddCardModal: React.FC = () => {
                                 {isAIChecking && (
                                     <div className="mt-2 text-sm text-blue-600 bg-blue-50 p-2 rounded-lg flex items-center gap-2">
                                         <Loader2 className="w-4 h-4 animate-spin" />
-                                        正在检查 Chrome AI 可用性...
+                                        Checking Chrome AI availability...
                                     </div>
                                 )}
 
                                 {(extractingSelection || extractingWebpage || isAIProcessing) && !isAIChecking && (
                                     <div className="mt-2 text-sm text-blue-600 bg-blue-50 p-2 rounded-lg flex items-center gap-2">
                                         <Loader2 className="w-4 h-4 animate-spin" />
-                                        正在使用 Chrome AI 智能提取和总结内容...
+                                        AI is extracting and summarizing content...
                                     </div>
                                 )}
                             </div>
                         )}
 
                         <div>
-                            <label className="block text-sm font-medium mb-1 text-gray-700">标题</label>
+                            <label className="block text-sm font-medium mb-1 text-gray-700">
+                                Title <span className="text-red-500">*</span>
+                            </label>
                             <input
                                 type="text"
                                 value={formData.title}
                                 onChange={(e) => setFormData({...formData, title: e.target.value})}
                                 className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
-                                placeholder="输入卡片标题..."
+                                placeholder="Enter card title..."
+                                required
                             />
                         </div>
 
                         <div>
-                            <label className="block text-sm font-medium mb-1 text-gray-700">内容</label>
+                            <label className="block text-sm font-medium mb-1 text-gray-700">Content</label>
                             <textarea
                                 value={formData.content}
                                 onChange={(e) => setFormData({...formData, content: e.target.value})}
                                 className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
                                 rows={8}
-                                placeholder="详细内容..."
+                                placeholder="Enter detailed content..."
                             />
                         </div>
 
@@ -534,7 +518,7 @@ export const AddCardModal: React.FC = () => {
                         </div>
 
                         <div className="relative" style={{ zIndex: 50 }}>
-                            <label className="block text-sm font-medium mb-1 text-gray-700">分类</label>
+                            <label className="block text-sm font-medium mb-1 text-gray-700">Category</label>
                             <CategorySelector
                                 value={formData.category}
                                 onChange={(category) => setFormData({ ...formData, category })}
@@ -543,43 +527,39 @@ export const AddCardModal: React.FC = () => {
                         </div>
                     </div>
 
-                    <div className="p-4 border-t flex justify-end gap-2 flex-shrink-0">
+                    <div className="px-4 py-3 border-t flex justify-end gap-2 flex-shrink-0">
                         <button
                             onClick={handleClose}
                             className="px-4 py-2 border border-gray-300 rounded-lg text-sm hover:bg-gray-50 transition-colors"
                         >
-                            取消
+                            Cancel
                         </button>
                         <button
                             onClick={handleSave}
                             className="px-4 py-2 bg-emerald-500 text-white rounded-lg text-sm flex items-center gap-1 hover:bg-emerald-600 transition-colors"
                         >
                             <Save className="w-4 h-4" />
-                            {isEditing ? '保存更改' : '保存'}
+                            {isEditing ? 'Update' : 'Save'}
                         </button>
                     </div>
                 </div>
             </div>
 
-
-
-            {/* 关闭确认对话框 */}
             <ConfirmDialog
                 isOpen={showCloseConfirm}
                 title="Interrupt AI Processing"
-                message="AI is currently generating content. Closing now will stop the process. Do you want to continue?"
-                confirmText="Confirm"
-                cancelText="Cancel"
+                message="AI is currently generating content. Closing now will stop the process. Continue?"
+                confirmText="Yes, Close"
+                cancelText="Keep Editing"
                 onConfirm={handleConfirmClose}
                 onCancel={handleCancelClose}
             />
 
-            {/* 保存确认对话框 */}
             <ConfirmDialog
                 isOpen={showSaveConfirm}
                 title="Save Incomplete Content"
-                message="AI is still generating content. Saving now may produce incomplete content. Are you sure you want to save?"
-                confirmText="Save"
+                message="AI is still generating. Saving now may result in incomplete content. Save anyway?"
+                confirmText="Save Now"
                 cancelText="Wait"
                 onConfirm={handleConfirmSave}
                 onCancel={() => setShowSaveConfirm(false)}
@@ -587,4 +567,3 @@ export const AddCardModal: React.FC = () => {
         </>
     );
 };
-

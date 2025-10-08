@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Clock, Link, Trash2, Edit2, ChevronDown, ChevronUp } from 'lucide-react';
+import { Clock, Link, Trash2, Edit2, ChevronDown, ChevronUp, Copy, Check } from 'lucide-react';
 import { KnowledgeCard } from '../../types/card.types';
 import { useStore } from '../../store';
 import { formatTime } from '../../utils/formatters';
@@ -27,6 +27,7 @@ export const CardItem: React.FC<CardItemProps> = ({
                                                   }) => {
     const { deleteCard, setEditingCard, setShowAddModal } = useStore();
     const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+    const [copied, setCopied] = useState(false);
 
     const handleDelete = (e: React.MouseEvent) => {
         e.stopPropagation();
@@ -44,7 +45,24 @@ export const CardItem: React.FC<CardItemProps> = ({
         setShowAddModal(true);
     };
 
+    const handleCopy = async (e: React.MouseEvent) => {
+        e.stopPropagation();
+        try {
+            await navigator.clipboard.writeText(card.content);
+            setCopied(true);
+            setTimeout(() => setCopied(false), 2000);
+        } catch (error) {
+            console.error('Failed to copy:', error);
+        }
+    };
+
     const handleCardClick = () => {
+        // Prevent collapse when user is selecting text
+        const selection = window.getSelection();
+        if (selection && selection.toString().length > 0) {
+            return;
+        }
+
         if (!isManageMode && isOverlapping) {
             onExpand();
         }
@@ -61,7 +79,6 @@ export const CardItem: React.FC<CardItemProps> = ({
             `}
             onClick={handleCardClick}
         >
-            {/* 父容器 padding：左16 右8 上12 下4（收缩时更紧凑） */}
             <div className="pl-4 pr-2 pt-3 pb-1 h-full flex flex-col">
                 {/* Header */}
                 <div className="flex items-start justify-between mb-2 flex-shrink-0">
@@ -91,7 +108,6 @@ export const CardItem: React.FC<CardItemProps> = ({
 
                 {/* Content Area */}
                 {isExpanded ? (
-                    // 展开状态：14px，紧凑行距
                     <div
                         className="flex-1 min-h-0 pt-2 border-t border-gray-200/50 overflow-y-auto pb-3 mb-2 custom-scrollbar -mr-1"
                         style={{ scrollbarGutter: 'stable' }}
@@ -102,13 +118,12 @@ export const CardItem: React.FC<CardItemProps> = ({
                         />
                     </div>
                 ) : (
-                    // 折叠状态：12px，紧凑型，增大底部间距
                     <p className="text-xs text-gray-700 line-clamp-3 leading-tight pr-2 mb-3">
                         {card.content}
                     </p>
                 )}
 
-                {/* Footer - 使用 mt-auto 固定在底部 */}
+                {/* Footer */}
                 <div className="flex items-center justify-between text-[10px] text-gray-600 flex-shrink-0 mt-auto">
                     <div className="flex items-center gap-2">
                         <span className="flex items-center gap-0.5">
@@ -131,16 +146,31 @@ export const CardItem: React.FC<CardItemProps> = ({
                     {!isManageMode && (
                         <div className="flex items-center gap-1">
                             <button
+                                onClick={handleCopy}
+                                className={`p-1 rounded transition-colors ${
+                                    copied
+                                        ? 'bg-green-100 text-green-600'
+                                        : 'hover:bg-white/50 text-gray-600'
+                                }`}
+                                title={copied ? 'Copied!' : 'Copy content'}
+                            >
+                                {copied ? (
+                                    <Check className="w-3.5 h-3.5" />
+                                ) : (
+                                    <Copy className="w-3.5 h-3.5" />
+                                )}
+                            </button>
+                            <button
                                 onClick={handleEdit}
                                 className="p-1 hover:bg-white/50 rounded transition-colors"
-                                title="编辑"
+                                title="Edit"
                             >
                                 <Edit2 className="w-3.5 h-3.5 text-gray-600" />
                             </button>
                             <button
                                 onClick={handleDelete}
                                 className="p-1 hover:bg-white/50 rounded transition-colors"
-                                title="删除"
+                                title="Delete"
                             >
                                 <Trash2 className="w-3.5 h-3.5 text-red-500" />
                             </button>
@@ -151,7 +181,7 @@ export const CardItem: React.FC<CardItemProps> = ({
                                         onExpand();
                                     }}
                                     className="p-1 hover:bg-white/50 rounded transition-colors"
-                                    title={isExpanded ? "收起" : "展开"}
+                                    title={isExpanded ? "Collapse" : "Expand"}
                                 >
                                     {isExpanded ? (
                                         <ChevronUp className="w-3.5 h-3.5 text-gray-600" />
@@ -165,11 +195,10 @@ export const CardItem: React.FC<CardItemProps> = ({
                 </div>
             </div>
 
-            {/* 删除确认对话框 */}
             <ConfirmDialog
                 isOpen={showDeleteConfirm}
                 title="Delete Card"
-                message={`Delete this card? This action cannot be undone.`}
+                message="Delete this card? This action cannot be undone."
                 confirmText="Delete"
                 cancelText="Cancel"
                 onConfirm={handleConfirmDelete}
