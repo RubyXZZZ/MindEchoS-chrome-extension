@@ -1,12 +1,13 @@
 // src/views/CardsView.tsx
 import React, { useState, useMemo, useCallback } from 'react';
 import { createPortal } from 'react-dom';
-import { Plus, Search, X, Check } from 'lucide-react';
+import { Plus, Search, X, Check} from 'lucide-react';
 import { useStore } from '../store';
 import { CardItem } from '../components/cards/CardItem';
 import { ALL_CARDS_FILTER, DEFAULT_CATEGORY, PROTECTED_CATEGORIES, STORAGE_KEYS, SAMPLE_CARD_ID } from '../utils/constants';
 import { AIRobotIcon } from '../components/layout/AIRobotIcon';
 import { ConfirmDialog } from '../components/modals/ConfirmDialog';
+import { aiSearchCards } from '../services/ai/searchAI';
 
 interface CardsViewProps {
     manageModeState?: {
@@ -51,6 +52,11 @@ export const CardsView: React.FC<CardsViewProps> = ({
     const [aiSelectedCards, setAiSelectedCards] = useState<string[]>([]);
     const [showNewChatDialog, setShowNewChatDialog] = useState(false);
 
+    // AI search mode
+    const [aiSearchMode, setAiSearchMode] = useState(false);
+    const [isAiSearching, setIsAiSearching] = useState(false);
+    const [aiMatchedCardIds, setAiMatchedCardIds] = useState<string[]>([]);
+
     const filteredCards = useMemo(() => {
         return cards.filter(card => {
             // Filter out sample card in AI selection mode
@@ -60,6 +66,15 @@ export const CardsView: React.FC<CardsViewProps> = ({
 
             const cardCategory = card.category || DEFAULT_CATEGORY;
 
+            // AI Search Mode
+            if (aiSearchMode && aiMatchedCardIds.length > 0) {
+                // Only show AI matched cards
+                const matchesAI = aiMatchedCardIds.includes(card.id);
+                const matchesCategory = selectedCategory === ALL_CARDS_FILTER || cardCategory === selectedCategory;
+                return matchesAI && matchesCategory;
+            }
+
+            // Normal Search Mode
             const matchesSearch = !searchQuery ||
                 card.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
                 card.content.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -68,8 +83,19 @@ export const CardsView: React.FC<CardsViewProps> = ({
             const matchesCategory = selectedCategory === ALL_CARDS_FILTER || cardCategory === selectedCategory;
 
             return matchesSearch && matchesCategory;
-        }).sort((a, b) => a.timestamp - b.timestamp);
-    }, [cards, searchQuery, selectedCategory, aiSelectionMode]);
+        }).sort((a, b) => {
+            // AI 搜索模式：按相关度排序
+            if (aiSearchMode && aiMatchedCardIds.length > 0) {
+                const indexA = aiMatchedCardIds.indexOf(a.id);
+                const indexB = aiMatchedCardIds.indexOf(b.id);
+                if (indexA !== -1 && indexB !== -1) {
+                    return indexA - indexB;
+                }
+            }
+            // 默认：按时间排序
+            return a.timestamp - b.timestamp;
+        });
+    }, [cards, searchQuery, selectedCategory, aiSelectionMode, aiSearchMode, aiMatchedCardIds]);
 
     const categoryCounts = useMemo(() => {
         const counts: { [key: string]: number } = { [ALL_CARDS_FILTER]: cards.length };
@@ -131,6 +157,61 @@ export const CardsView: React.FC<CardsViewProps> = ({
 
     const handleAiDeselectAll = () => {
         setAiSelectedCards([]);
+    };
+
+    // AI Search Handlers
+    const handleToggleAiSearch = () => {
+        if (aiSearchMode) {
+            // 关闭 AI 搜索
+            setAiSearchMode(false);
+            setAiMatchedCardIds([]);
+        } else {
+            // 开启 AI 搜索
+            setAiSearchMode(true);
+            setAiMatchedCardIds([]);
+        }
+    };
+
+    const handleAiSearch = async () => {
+        const trimmedQuery = searchQuery.trim();
+
+        if (!trimmedQuery) {
+            setAiMatchedCardIds([]);
+            return;
+        }
+
+        setIsAiSearching(true);
+        try {
+            const searchableCards = cards
+                .filter(c => c.id !== SAMPLE_CARD_ID)
+                .map(c => ({
+                    id: c.id,
+                    displayNumber: c.displayNumber,
+                    title: c.title,
+                    content: c.content
+                }));
+
+            // 检查 aiSearchCards 是否存在
+            if (typeof aiSearchCards !== 'function') {
+                console.error('[CardsView] aiSearchCards is not a function');
+                setAiMatchedCardIds([]);
+                return;
+            }
+
+            const matchedIds = await aiSearchCards(searchableCards, trimmedQuery);
+            setAiMatchedCardIds(matchedIds);
+        } catch (error) {
+            console.error('[CardsView] AI search failed:', error);
+            setAiMatchedCardIds([]);
+        } finally {
+            setIsAiSearching(false);
+        }
+    };
+
+    const handleSearchKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+        if (e.key === 'Enter' && aiSearchMode && searchQuery.trim()) {
+            handleAiSearch();
+        }
     };
 
     const handleAiSelectionConfirm = async () => {
@@ -232,11 +313,56 @@ export const CardsView: React.FC<CardsViewProps> = ({
                     <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
                     <input
                         type="text"
-                        placeholder="Search cards..."
+                        placeholder={aiSearchMode ? "AI Search (Press Enter to search)..." : "Search cards..."}
                         value={searchQuery}
                         onChange={(e) => setSearchQuery(e.target.value)}
-                        className="w-full pl-9 pr-3 py-1.5 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/30"
+                        onKeyDown={handleSearchKeyDown}
+                        disabled={isAiSearching}
+                        className={`w-full pl-9 pr-20 py-1.5 border rounded-lg text-sm focus:outline-none focus:ring-2 transition-all ${
+                            aiSearchMode
+                                ? 'bg-gradient-to-r from-purple-50 to-blue-50 border-purple-300 focus:ring-purple-500/30'
+                                : 'bg-gray-50 border-gray-200 focus:ring-emerald-500/30'
+                        } disabled:opacity-60`}
                     />
+
+                    {/* Right side controls */}
+                    <div className="absolute right-2 top-1/2 transform -translate-y-1/2 flex items-center gap-1.5">
+                        {/* Match count (AI mode with results) */}
+                        {aiSearchMode && aiMatchedCardIds.length > 0 && !isAiSearching && (
+                            <div className="text-[10px] text-purple-600 font-medium bg-purple-100 px-1.5 py-0.5 rounded">
+                                {aiMatchedCardIds.length}
+                            </div>
+                        )}
+
+                        {/* AI Toggle Switch */}
+                        <button
+                            onClick={handleToggleAiSearch}
+                            disabled={isAiSearching}
+                            className={`relative inline-flex items-center h-5 w-11 rounded-full transition-colors ${
+                                aiSearchMode
+                                    ? 'bg-purple-500'
+                                    : 'bg-gray-400'
+                            } disabled:opacity-50`}
+                            title={aiSearchMode ? 'Disable AI search' : 'Enable AI search'}
+                        >
+                            {/* Switch knob */}
+                            <span
+                                className={`absolute h-4 w-4 rounded-full bg-white shadow-sm transition-transform ${
+                                    aiSearchMode ? 'translate-x-[26px]' : 'translate-x-0.5'
+                                }`}
+                            />
+                            {/* AI text - positioned in the colored area */}
+                            <span className={`absolute text-[9px] font-bold text-white transition-opacity ${
+                                aiSearchMode ? 'left-2' : 'right-2'
+                            }`}>
+                                {isAiSearching ? (
+                                    <div className="w-2 h-2 border border-white border-t-transparent rounded-full animate-spin" />
+                                ) : (
+                                    'AI'
+                                )}
+                            </span>
+                        </button>
+                    </div>
                 </div>
                 <div className="flex gap-1.5 flex-wrap items-center">
                     {filterOptions.map(filter => (

@@ -14,8 +14,7 @@ function App() {
         cards,
         initialize,
         loadStore,
-        checkForPendingSelection,
-        loadSettings  // 新增：加载设置
+        checkForPendingSelection
     } = useStore();
     const [isLoading, setIsLoading] = useState(true);
 
@@ -59,7 +58,6 @@ function App() {
             try {
                 initialize();
                 await loadStore();
-                await loadSettings();  // 新增：加载设置（包括 showCardNumbers）
                 await checkForPendingSelection();
             } catch (error) {
                 console.error('Failed to initialize app:', error);
@@ -69,7 +67,7 @@ function App() {
         };
 
         initializeApp();
-    }, [initialize, loadStore, loadSettings, checkForPendingSelection]);
+    }, [initialize, loadStore, checkForPendingSelection]);
 
     if (isLoading) {
         return (
