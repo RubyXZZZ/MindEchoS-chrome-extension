@@ -3,7 +3,7 @@ import React, { useState, useMemo } from 'react';
 import { Layers, X, Search, CheckSquare, Square } from 'lucide-react';
 import { KnowledgeCard } from '../../types/card.types';
 import { useStore } from '../../store';
-import { ALL_CARDS_FILTER } from '../../utils/constants';
+import { ALL_CARDS_FILTER, SAMPLE_CARD_ID } from '../../utils/constants';
 
 interface ChatTopBarProps {
     selectedCards: KnowledgeCard[];
@@ -41,7 +41,7 @@ export const ChatTopBar: React.FC<ChatTopBarProps> = ({
 
         // Add categories from existing cards
         allCards.forEach(card => {
-            if (card.id !== 'sample-card-1' && card.category) {
+            if (card.id !== SAMPLE_CARD_ID && card.category) {
                 allCategories.add(card.category);
             }
         });
@@ -52,7 +52,7 @@ export const ChatTopBar: React.FC<ChatTopBarProps> = ({
     // Filter cards based on search and category
     const filteredCards = useMemo(() => {
         return allCards.filter(card => {
-            if (card.id === 'sample-card-1') return false;
+            if (card.id === SAMPLE_CARD_ID) return false;
 
             // Category filter
             if (selectedCategory !== ALL_CARDS_FILTER && card.category !== selectedCategory) {

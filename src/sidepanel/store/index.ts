@@ -6,7 +6,8 @@ import {
     DEFAULT_CATEGORY,
     PROTECTED_CATEGORIES,
     STORAGE_KEYS,
-    CARD_COLORS
+    CARD_COLORS,
+    SAMPLE_CARD_ID  // ← 添加导入
 } from '../utils/constants';
 import { generateArchiveId } from '../utils/idGenerator';
 
@@ -177,7 +178,7 @@ export const useStore = create<AppState>((set, get) => ({
 
             if (!result[STORAGE_KEYS.CARDS] || !Array.isArray(result[STORAGE_KEYS.CARDS])) {
                 const sampleCard: KnowledgeCard = {
-                    id: 'cd-sample-00',
+                    id: SAMPLE_CARD_ID,  // ← 使用常量
                     displayNumber: 0,
                     title: '欢迎使用知识卡片!',
                     content: '这是一个示例卡片。你可以使用右键菜单或快捷键从任何网页上捕获选中的文本来创建新卡片。',
@@ -521,7 +522,8 @@ export const useStore = create<AppState>((set, get) => ({
 
             let nextNumber = 1;
             const updatedCards = cards.map((card) => {
-                if (card.id === 'cd-sample-00' || card.id === 'sample-card-1') {
+                // Sample 卡片保持编号 0
+                if (card.id === SAMPLE_CARD_ID) {  // ← 使用常量
                     return { ...card, displayNumber: 0 };
                 }
                 const displayNumber = nextNumber;

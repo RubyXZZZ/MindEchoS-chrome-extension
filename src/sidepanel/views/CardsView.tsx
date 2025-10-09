@@ -4,7 +4,7 @@ import { createPortal } from 'react-dom';
 import { Plus, Search, X, Check } from 'lucide-react';
 import { useStore } from '../store';
 import { CardItem } from '../components/cards/CardItem';
-import { ALL_CARDS_FILTER, DEFAULT_CATEGORY, PROTECTED_CATEGORIES, STORAGE_KEYS } from '../utils/constants';
+import { ALL_CARDS_FILTER, DEFAULT_CATEGORY, PROTECTED_CATEGORIES, STORAGE_KEYS, SAMPLE_CARD_ID } from '../utils/constants';
 import { AIRobotIcon } from '../components/layout/AIRobotIcon';
 import { ConfirmDialog } from '../components/modals/ConfirmDialog';
 
@@ -40,9 +40,7 @@ export const CardsView: React.FC<CardsViewProps> = ({
         setSelectedCardsForChat,
         setCurrentView,
         messages,
-        clearMessages,
-        archiveCurrentChat,
-        saveCurrentChat
+        clearMessages
     } = useStore();
 
     const [showNewCategoryInput, setShowNewCategoryInput] = useState(false);
@@ -56,7 +54,7 @@ export const CardsView: React.FC<CardsViewProps> = ({
     const filteredCards = useMemo(() => {
         return cards.filter(card => {
             // Filter out sample card in AI selection mode
-            if (aiSelectionMode && card.id === 'sample-card-1') {
+            if (aiSelectionMode && card.id === SAMPLE_CARD_ID) {
                 return false;
             }
 
@@ -123,17 +121,28 @@ export const CardsView: React.FC<CardsViewProps> = ({
         setAiSelectedCards([]);
     };
 
+    const handleAiSelectAll = () => {
+        // Select all filtered cards (excluding sample card)
+        const allValidCardIds = filteredCards
+            .filter(card => card.id !== SAMPLE_CARD_ID)
+            .map(card => card.id);
+        setAiSelectedCards(allValidCardIds);
+    };
+
+    const handleAiDeselectAll = () => {
+        setAiSelectedCards([]);
+    };
+
     const handleAiSelectionConfirm = async () => {
         // Filter out sample card before confirmation
-        const validSelectedCards = aiSelectedCards.filter(id => id !== 'sample-card-1');
+        const validSelectedCards = aiSelectedCards.filter(id => id !== SAMPLE_CARD_ID);
 
         if (validSelectedCards.length === 0) {
             alert('Please select at least one card');
             return;
         }
 
-        // Check if there's actual conversation (user input or AI response)
-        // Not just card selection without interaction
+        // Check if there's actual conversation
         const result = await chrome.storage.local.get(STORAGE_KEYS.CURRENT_CHAT);
         const savedMessages = result[STORAGE_KEYS.CURRENT_CHAT]?.messages || [];
         const currentMessages = messages.length > 0 ? messages : savedMessages;
@@ -165,8 +174,14 @@ export const CardsView: React.FC<CardsViewProps> = ({
         // Update state
         setSelectedCardsForChat(combinedCards);
 
-        // Save to storage using store's method
-        await saveCurrentChat();
+        // Save to storage
+        await chrome.storage.local.set({
+            [STORAGE_KEYS.CURRENT_CHAT]: {
+                messages,
+                selectedCards: combinedCards,
+                lastUpdated: Date.now()
+            }
+        });
 
         setShowNewChatDialog(false);
         setAiSelectionMode(false);
@@ -176,19 +191,10 @@ export const CardsView: React.FC<CardsViewProps> = ({
         setCurrentView('chat');
     };
 
-    const handleDeleteAndNewChat = async () => {
+    const handleStartNewChat = async () => {
         clearMessages();
         setSelectedCardsForChat(aiSelectedCards);
         await chrome.storage.local.remove(STORAGE_KEYS.CURRENT_CHAT);
-        setCurrentView('chat');
-        setShowNewChatDialog(false);
-        setAiSelectionMode(false);
-        setAiSelectedCards([]);
-    };
-
-    const handleArchiveAndNewChat = async () => {
-        await archiveCurrentChat();
-        setSelectedCardsForChat(aiSelectedCards);
         setCurrentView('chat');
         setShowNewChatDialog(false);
         setAiSelectionMode(false);
@@ -360,17 +366,28 @@ export const CardsView: React.FC<CardsViewProps> = ({
 
                 {/* AI Selection Mode: Confirm/Cancel Buttons */}
                 {aiSelectionMode && (
-                    <div className="fixed bottom-4 left-4 flex gap-2 z-20">
-                        <button
-                            onClick={handleAiSelectionCancel}
-                            className="px-4 py-2 bg-gray-100 text-gray-700 text-sm rounded-lg hover:bg-gray-200 transition-colors font-medium border border-gray-300"
-                        >
-                            Cancel
-                        </button>
+                    <div className="fixed bottom-4 left-4 right-4 flex gap-2 z-20">
+                        {/* Left side: Cancel + Select All */}
+                        <div className="flex gap-2">
+                            <button
+                                onClick={handleAiSelectionCancel}
+                                className="px-4 py-2 bg-gray-100 text-gray-700 text-sm rounded-lg hover:bg-gray-200 transition-colors font-medium border border-gray-300"
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                onClick={aiSelectedCards.length === filteredCards.filter(c => c.id !== SAMPLE_CARD_ID).length ? handleAiDeselectAll : handleAiSelectAll}
+                                className="px-4 py-2 bg-blue-100 text-blue-700 text-sm rounded-lg hover:bg-blue-200 transition-colors font-medium border border-blue-300"
+                            >
+                                {aiSelectedCards.length === filteredCards.filter(c => c.id !== SAMPLE_CARD_ID).length ? 'Deselect All' : 'Select All'}
+                            </button>
+                        </div>
+
+                        {/* Right side: Confirm */}
                         <button
                             onClick={handleAiSelectionConfirm}
                             disabled={aiSelectedCards.length === 0}
-                            className="px-4 py-2 bg-emerald-500 text-white text-sm rounded-lg hover:bg-emerald-600 transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                            className="ml-auto px-4 py-2 bg-emerald-500 text-white text-sm rounded-lg hover:bg-emerald-600 transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
                         >
                             <AIRobotIcon size={20} />
                             Confirm ({aiSelectedCards.length})
@@ -388,26 +405,35 @@ export const CardsView: React.FC<CardsViewProps> = ({
                         <Plus className="w-6 h-6" />
                     </button>
                 )}
+
+                {/* Selected Cards Count (Left Bottom) - Only in Manage Mode */}
+                {manageModeState?.isManageMode && manageModeState.selectedCards.length > 0 && (
+                    <div className="fixed bottom-4 left-4 px-4 py-2 bg-gray-800 text-white text-sm rounded-lg shadow-lg z-20">
+                        Selected {manageModeState.selectedCards.length} card{manageModeState.selectedCards.length > 1 ? 's' : ''}
+                    </div>
+                )}
             </div>
 
-            {/* New Chat Dialog */}
+            {/* New Chat Dialog - Simplified */}
             {showNewChatDialog && createPortal(
                 <ConfirmDialog
                     isOpen={showNewChatDialog}
-                    title="Start New Chat with Selected Cards?"
-                    message="You have an existing conversation. What would you like to do?"
-                    confirmText="Delete & Start New"
-                    cancelText="Continue Current Chat"
-                    onConfirm={handleDeleteAndNewChat}
-                    onCancel={handleContinueChat}
-                    cancelButtonStyle="primary"
-                    additionalActions={[
-                        {
-                            text: 'Archive & Start New',
-                            onClick: handleArchiveAndNewChat,
-                            className: 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50'
-                        }
-                    ]}
+                    title={`Add ${aiSelectedCards.length} Card${aiSelectedCards.length > 1 ? 's' : ''} to Chat?`}
+                    message={
+                        <div className="space-y-2">
+                            <p className="text-sm text-gray-700">
+                                You have an ongoing conversation with {messages.length} message{messages.length > 1 ? 's' : ''}.
+                            </p>
+                            <div className="p-2 bg-blue-50 border border-blue-200 rounded text-xs text-blue-800">
+                                💡 <strong>Tip:</strong> To save the current conversation, use the Archive button in Chat view first.
+                            </div>
+                        </div>
+                    }
+                    confirmText="Continue & Add Cards"
+                    cancelText="Start New (Discard Current)"
+                    onConfirm={handleContinueChat}
+                    onCancel={handleStartNewChat}
+                    confirmButtonStyle="primary"
                 />,
                 document.body
             )}

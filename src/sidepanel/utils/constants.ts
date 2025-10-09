@@ -1,3 +1,5 @@
+// src/utils/constants.ts
+
 export const CARD_COLORS = [
     'bg-gradient-to-br from-purple-100 to-pink-100',
     'bg-gradient-to-br from-blue-100 to-cyan-100',
@@ -7,7 +9,7 @@ export const CARD_COLORS = [
     'bg-gradient-to-br from-indigo-100 to-purple-100',
 ];
 
-// --- New Category Logic ---
+// --- Category Logic ---
 
 // The filter to show all cards, not an assignable category.
 export const ALL_CARDS_FILTER = 'All';
@@ -21,12 +23,20 @@ export const INITIAL_CATEGORIES = [DEFAULT_CATEGORY] as const;
 // Non-deletable categories.
 export const PROTECTED_CATEGORIES = [DEFAULT_CATEGORY];
 
+// --- Sample Card ---
+
+// Sample Card ID - 用于识别和过滤示例卡片
+// 该卡片仅在首次加载且无其他卡片时创建
+export const SAMPLE_CARD_ID = 'cd-sample-00';
+
+// --- Storage Keys ---
+
 export const STORAGE_KEYS = {
     CARDS: 'knowledge_cards',
     CURRENT_CHAT: 'current_chat',
     CHAT_ARCHIVES: 'chat_archives',
     PREFERENCES: 'user_preferences',
     USER_CATEGORIES: 'userCategories',
-    NEXT_DISPLAY_NUMBER: 'nextDisplayNumber',  // 新增：下一个卡片编号
-    SHOW_CARD_NUMBERS: 'showCardNumbers',      // 新增：是否显示卡片编号
+    NEXT_DISPLAY_NUMBER: 'nextDisplayNumber',
+    SHOW_CARD_NUMBERS: 'showCardNumbers',
 } as const;

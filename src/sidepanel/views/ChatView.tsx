@@ -1,6 +1,4 @@
 // views/ChatView.tsx
-// 简化的组装版本
-
 import React from 'react';
 import { useChat } from '../hooks/useChat';
 import { ChatTopBar } from '../components/layout/ChatTopBar';
@@ -60,7 +58,7 @@ export const ChatView: React.FC = () => {
                 isInitializing={chat.isInitializing}
             />
 
-            {/* Messages  */}
+            {/* Messages */}
             <MessageList
                 messages={chat.messages}
                 selectedCards={chat.selectedCards}
@@ -83,7 +81,7 @@ export const ChatView: React.FC = () => {
                 onWriteTask={chat.handleWriteTask}
             />
 
-            {/* Messages  */}
+            {/* Chat Input */}
             <ChatInput
                 inputMessage={chat.inputMessage}
                 isGenerating={chat.isGenerating}
@@ -94,15 +92,40 @@ export const ChatView: React.FC = () => {
                 onStop={chat.handleStop}
             />
 
-            {/* New Chat Dialog */}
+            {/* New Chat Dialog - Optimized (Delete 为主) */}
             <ConfirmDialog
                 isOpen={chat.showNewChatDialog}
-                title="Start New Conversation"
-                message="Starting a new conversation will delete the current one. Would you like to DELETE? (Note: Archiving will consume storage space)"
+                title="Start New Conversation?"
+                message={
+                    <div className="space-y-2">
+                        <p className="text-sm text-gray-700">
+                            You have an ongoing conversation. Choose how to proceed:
+                        </p>
+
+                        {/* Delete 说明卡（灰色） */}
+                        <div className="flex items-start gap-2 p-2.5 bg-gray-50 rounded-lg border border-gray-200">
+                            <span className="text-base flex-shrink-0">🗑️</span>
+                            <div className="text-xs text-gray-700">
+                                <strong className="text-gray-900">Delete</strong>
+                                <div className="mt-0.5">Permanently remove (Frees storage)</div>
+                            </div>
+                        </div>
+
+                        {/* Archive 说明卡（蓝色） */}
+                        <div className="flex items-start gap-2 p-2.5 bg-blue-50 rounded-lg border border-blue-200">
+                            <span className="text-base flex-shrink-0">🗂️</span>
+                            <div className="text-xs text-gray-700">
+                                <strong className="text-blue-700">Archive</strong>
+                                <div className="mt-0.5">View in ⚙️ Settings or 🗂️ Manage → History</div>
+                            </div>
+                        </div>
+                    </div>
+                }
                 confirmText="Delete & Start New"
                 cancelText="Archive & Start New"
                 onConfirm={chat.handleDeleteAndNew}
                 onCancel={chat.handleArchiveAndNew}
+                confirmButtonStyle="danger"
             />
         </div>
     );

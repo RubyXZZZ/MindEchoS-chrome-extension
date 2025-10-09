@@ -175,7 +175,7 @@ export const NavigationBar: React.FC<NavigationBarProps> = ({
                         }`}
                     >
                         {isManageMode ? (
-                            <><X className="w-3 h-3" /><span>取消</span></>
+                            <><X className="w-3 h-3" /><span>Cancel</span></>
                         ) : (
                             <><Settings2 className="w-3 h-3" /><span>Manage</span></>
                         )}

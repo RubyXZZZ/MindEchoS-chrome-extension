@@ -12,13 +12,14 @@ interface AdditionalAction {
 interface ConfirmDialogProps {
     isOpen: boolean;
     title: string;
-    message: string;
+    message: string | React.ReactNode;
     confirmText?: string;
     cancelText?: string;
     onConfirm: () => void;
     onCancel: () => void;
     additionalActions?: AdditionalAction[];
     cancelButtonStyle?: 'default' | 'primary';
+    confirmButtonStyle?: 'default' | 'primary' | 'danger';
 }
 
 export const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
@@ -30,9 +31,22 @@ export const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
                                                                 onConfirm,
                                                                 onCancel,
                                                                 additionalActions = [],
-                                                                cancelButtonStyle = 'default'
+                                                                cancelButtonStyle = 'default',
+                                                                confirmButtonStyle = 'danger'
                                                             }) => {
     if (!isOpen) return null;
+
+    // Determine confirm button styles
+    const getConfirmButtonClass = () => {
+        switch (confirmButtonStyle) {
+            case 'primary':
+                return 'bg-emerald-500 text-white hover:bg-emerald-600';
+            case 'danger':
+                return 'bg-red-500 text-white hover:bg-red-600';
+            default:
+                return 'bg-gray-500 text-white hover:bg-gray-600';
+        }
+    };
 
     return createPortal(
         <div className="fixed inset-0 z-[999999] flex items-center justify-center">
@@ -61,18 +75,22 @@ export const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
 
                 {/* Content */}
                 <div className="px-6 py-4">
-                    <p className="text-sm text-gray-600 leading-relaxed">
-                        {message}
-                    </p>
+                    {typeof message === 'string' ? (
+                        <p className="text-sm text-gray-600 leading-relaxed">
+                            {message}
+                        </p>
+                    ) : (
+                        message
+                    )}
                 </div>
 
                 {/* Actions */}
                 <div className="px-6 py-4 bg-gray-50 border-t border-gray-200">
                     <div className="flex flex-col gap-2">
-                        {/* Primary Action */}
+                        {/* Primary Action (Confirm) */}
                         <button
                             onClick={onConfirm}
-                            className="w-full px-4 py-2 bg-red-500 text-white text-sm font-medium rounded-lg hover:bg-red-600 transition-colors"
+                            className={`w-full px-4 py-2 text-sm font-medium rounded-lg transition-colors ${getConfirmButtonClass()}`}
                         >
                             {confirmText}
                         </button>
