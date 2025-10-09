@@ -38,6 +38,10 @@ interface AppState {
     // Settings
     showCardNumbers: boolean;
 
+    // Storage
+    storageUsed: number;
+    storageLimit: number;
+
     // UI
     currentView: 'cards' | 'chat' | 'settings';
     showAddModal: boolean;
@@ -81,6 +85,9 @@ interface AppState {
     setShowCardNumbers: (show: boolean) => Promise<void>;
     resetCardNumbers: () => Promise<void>;
 
+    // Storage Actions
+    updateStorageUsage: () => Promise<void>;
+
     // UI Actions
     setCurrentView: (view: 'cards' | 'chat' | 'settings') => void;
     setShowAddModal: (show: boolean) => void;
@@ -104,7 +111,11 @@ export const useStore = create<AppState>((set, get) => ({
     chatArchives: [],
 
     // === Settings State ===
-    showCardNumbers: true,  // 默认显示卡片编号
+    showCardNumbers: true,
+
+    // === Storage State ===
+    storageUsed: 0,
+    storageLimit: 10485760,  // 10 MB
 
     // === UI State ===
     currentView: 'cards',
@@ -203,6 +214,9 @@ export const useStore = create<AppState>((set, get) => ({
 
             set({ cards: newCards });
             await chrome.storage.local.set({ [STORAGE_KEYS.CARDS]: newCards });
+
+            // 更新存储使用量
+            get().updateStorageUsage();
         } catch (error) {
             console.error('Error adding card:', error);
             const originalCards = get().cards.filter(c => c.id !== card.id);
@@ -219,6 +233,9 @@ export const useStore = create<AppState>((set, get) => ({
 
             set({ cards: newCards });
             await chrome.storage.local.set({ [STORAGE_KEYS.CARDS]: newCards });
+
+            // 更新存储使用量
+            get().updateStorageUsage();
         } catch (error) {
             console.error('Error updating card:', error);
         }
@@ -231,6 +248,9 @@ export const useStore = create<AppState>((set, get) => ({
 
             set({ cards: newCards });
             await chrome.storage.local.set({ [STORAGE_KEYS.CARDS]: newCards });
+
+            // 更新存储使用量
+            get().updateStorageUsage();
         } catch (error) {
             console.error('Error deleting card:', error);
         }
@@ -284,6 +304,9 @@ export const useStore = create<AppState>((set, get) => ({
                 [STORAGE_KEYS.CARDS]: newCards,
                 [STORAGE_KEYS.USER_CATEGORIES]: newUserCategories
             });
+
+            // 更新存储使用量
+            get().updateStorageUsage();
         } catch (error) {
             console.error('Error deleting category and cards:', error);
         }
@@ -385,7 +408,6 @@ export const useStore = create<AppState>((set, get) => ({
                 return;
             }
 
-            // 生成归档标题（从第一条用户消息）
             const firstUserMsg = state.messages.find(m => m.role === 'user');
             const title = firstUserMsg
                 ? firstUserMsg.content.substring(0, 50) + (firstUserMsg.content.length > 50 ? '...' : '')
@@ -400,25 +422,24 @@ export const useStore = create<AppState>((set, get) => ({
                 archivedAt: Date.now()
             };
 
-            // 获取现有归档
             const result = await chrome.storage.local.get([STORAGE_KEYS.CHAT_ARCHIVES]);
             const archives = result[STORAGE_KEYS.CHAT_ARCHIVES] || [];
 
-            // 添加新归档
             const newArchives = [archive, ...archives];
             await chrome.storage.local.set({
                 [STORAGE_KEYS.CHAT_ARCHIVES]: newArchives
             });
 
-            // 更新状态
             set({
                 chatArchives: newArchives,
                 messages: [],
                 selectedCardsForChat: []
             });
 
-            // 清空当前对话的持久化
             await chrome.storage.local.remove(STORAGE_KEYS.CURRENT_CHAT);
+
+            // 更新存储使用量
+            get().updateStorageUsage();
 
             console.log('[Store] Chat archived:', archive.id);
         } catch (error) {
@@ -450,6 +471,9 @@ export const useStore = create<AppState>((set, get) => ({
                 [STORAGE_KEYS.CHAT_ARCHIVES]: newArchives
             });
 
+            // 更新存储使用量
+            get().updateStorageUsage();
+
             console.log('[Store] Archive deleted:', archiveId);
         } catch (error) {
             console.error('[Store] Error deleting archive:', error);
@@ -474,7 +498,7 @@ export const useStore = create<AppState>((set, get) => ({
     loadSettings: async () => {
         try {
             const result = await chrome.storage.local.get([STORAGE_KEYS.SHOW_CARD_NUMBERS]);
-            const showCardNumbers = result[STORAGE_KEYS.SHOW_CARD_NUMBERS] !== false; // 默认为 true
+            const showCardNumbers = result[STORAGE_KEYS.SHOW_CARD_NUMBERS] !== false;
             set({ showCardNumbers });
         } catch (error) {
             console.error('[Store] Error loading settings:', error);
@@ -495,7 +519,6 @@ export const useStore = create<AppState>((set, get) => ({
             const state = get();
             const cards = [...state.cards].sort((a, b) => a.timestamp - b.timestamp);
 
-            // 使用计数器，只为非示例卡片分配编号
             let nextNumber = 1;
             const updatedCards = cards.map((card) => {
                 if (card.id === 'cd-sample-00' || card.id === 'sample-card-1') {
@@ -506,14 +529,22 @@ export const useStore = create<AppState>((set, get) => ({
                 return { ...card, displayNumber };
             });
 
-            // 保存更新后的卡片
             set({ cards: updatedCards });
             await chrome.storage.local.set({ [STORAGE_KEYS.CARDS]: updatedCards });
-
-            // 重置计数器（nextNumber 现在是下一个应该使用的编号）
             await chrome.storage.local.set({ [STORAGE_KEYS.NEXT_DISPLAY_NUMBER]: nextNumber });
         } catch (error) {
             console.error('[Store] Error resetting card numbers:', error);
+        }
+    },
+
+    // === Storage Actions ===
+
+    updateStorageUsage: async () => {
+        try {
+            const bytesInUse = await chrome.storage.local.getBytesInUse(null);
+            set({ storageUsed: bytesInUse });
+        } catch (error) {
+            console.error('[Store] Error getting storage usage:', error);
         }
     },
 

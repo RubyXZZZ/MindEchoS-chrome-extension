@@ -17,20 +17,37 @@ export const NavigationBar: React.FC<NavigationBarProps> = ({
     const { currentView, setCurrentView } = useStore();
     const { isManageMode } = manageState;
 
+    // 记住上一个 cards/chat 视图（用于 settings 时保持标签位置）
+    const [lastContentView, setLastContentView] = React.useState<'cards' | 'chat'>('cards');
+
+    // 更新 lastContentView
+    React.useEffect(() => {
+        if (currentView === 'cards' || currentView === 'chat') {
+            setLastContentView(currentView);
+        }
+    }, [currentView]);
+
+    // 用于显示标签位置的视图（settings 时使用 lastContentView）
+    const displayView = currentView === 'settings' ? lastContentView : currentView;
+
     const handleLogoClick = () => {
+        // 只切换到 settings，不改变其他视图状态
         setCurrentView('settings');
 
-        if (currentView === 'cards') {
-            onManageStateChange({
-                view: 'cards',
-                isManageMode: false,
-                selectedCards: []
-            });
-        } else if (currentView === 'chat') {
-            onManageStateChange({
-                view: 'chat',
-                isManageMode: false
-            });
+        // 退出 Manage 模式（如果正在 Manage）
+        if (isManageMode) {
+            if (currentView === 'cards') {
+                onManageStateChange({
+                    view: 'cards',
+                    isManageMode: false,
+                    selectedCards: []
+                });
+            } else if (currentView === 'chat') {
+                onManageStateChange({
+                    view: 'chat',
+                    isManageMode: false
+                });
+            }
         }
     };
 
@@ -117,7 +134,7 @@ export const NavigationBar: React.FC<NavigationBarProps> = ({
                         <div
                             className="absolute top-0.5 bottom-0.5 left-0.5 w-[72px] bg-emerald-500 rounded-md shadow-md transition-transform duration-300 ease-out"
                             style={{
-                                transform: currentView === 'cards' ? 'translateX(0)' : 'translateX(72px)',
+                                transform: displayView === 'cards' ? 'translateX(0)' : 'translateX(72px)',
                                 willChange: 'transform'
                             }}
                         />
@@ -126,7 +143,7 @@ export const NavigationBar: React.FC<NavigationBarProps> = ({
                         <button
                             onClick={() => handleViewChange('cards')}
                             className={`relative z-10 w-[72px] py-1.5 rounded-md text-sm font-medium transition-colors duration-300 ${
-                                currentView === 'cards'
+                                displayView === 'cards'
                                     ? 'text-white'
                                     : 'text-gray-700 hover:text-gray-900'
                             }`}
@@ -136,7 +153,7 @@ export const NavigationBar: React.FC<NavigationBarProps> = ({
                         <button
                             onClick={() => handleViewChange('chat')}
                             className={`relative z-10 w-[72px] py-1.5 rounded-md text-sm font-medium transition-colors duration-300 ${
-                                currentView === 'chat'
+                                displayView === 'chat'
                                     ? 'text-white'
                                     : 'text-gray-700 hover:text-gray-900'
                             }`}

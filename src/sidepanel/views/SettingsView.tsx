@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { ArrowLeft, Trash2, Calendar, MessageSquare, Archive as ArchiveIcon, Hash, RotateCcw, Check, Keyboard, Settings } from 'lucide-react';
+import { ArrowLeft, Trash2, Calendar, MessageSquare, Archive as ArchiveIcon, Hash, RotateCcw, Check, Keyboard, Settings, HardDrive } from 'lucide-react';
 import { useStore } from '../store';
 import { formatTime } from '../utils/formatters';
 import { STORAGE_KEYS } from '../utils/constants';
@@ -14,7 +14,10 @@ export const SettingsView: React.FC = () => {
         setCurrentView,
         showCardNumbers,
         setShowCardNumbers,
-        resetCardNumbers
+        resetCardNumbers,
+        storageUsed,
+        storageLimit,
+        updateStorageUsage
     } = useStore();
 
     // Check if entering from History button, default open archives tab
@@ -31,17 +34,38 @@ export const SettingsView: React.FC = () => {
     const [resetSuccess, setResetSuccess] = useState(false);
     const [currentShortcut, setCurrentShortcut] = useState<string>('Not set');
 
+    // Helper functions for storage display
+    const formatBytes = (bytes: number): string => {
+        if (bytes === 0) return '0 B';
+        const k = 1024;
+        const sizes = ['B', 'KB', 'MB'];
+        const i = Math.floor(Math.log(bytes) / Math.log(k));
+        return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+    };
+
+    const getStoragePercentage = (): number => {
+        return Math.round((storageUsed / storageLimit) * 100);
+    };
+
+    const getStorageWarningLevel = (): 'safe' | 'warning' | 'danger' => {
+        const percentage = getStoragePercentage();
+        if (percentage >= 80) return 'danger';
+        if (percentage >= 60) return 'warning';
+        return 'safe';
+    };
+
     useEffect(() => {
         loadChatArchives();
+        updateStorageUsage();
 
-        // 获取当前快捷键（保持系统原生显示）
+        // 获取当前快捷键
         chrome.commands.getAll((commands) => {
             const extractCommand = commands.find(cmd => cmd.name === 'extract-knowledge');
             if (extractCommand && extractCommand.shortcut) {
                 setCurrentShortcut(extractCommand.shortcut);
             }
         });
-    }, []);
+    }, [loadChatArchives, updateStorageUsage]);
 
     const handleLoadArchive = (archiveId: string) => {
         loadArchive(archiveId);
@@ -60,6 +84,7 @@ export const SettingsView: React.FC = () => {
             try {
                 await chrome.storage.local.set({ [STORAGE_KEYS.CHAT_ARCHIVES]: [] });
                 await loadChatArchives();
+                await updateStorageUsage();
             } catch (error) {
                 console.error('[SettingsView] Error clearing archives:', error);
             }
@@ -248,6 +273,58 @@ export const SettingsView: React.FC = () => {
                                         Customize Shortcuts
                                     </button>
                                 </div>
+                            </div>
+                        </div>
+
+                        {/* Storage Usage Section */}
+                        <div className="bg-white rounded-lg border border-gray-200 p-4">
+                            <div className="flex items-center gap-2 mb-3">
+                                <HardDrive className="w-4 h-4 text-gray-600" />
+                                <h3 className="text-sm font-semibold text-gray-900">Storage Usage</h3>
+                            </div>
+
+                            <div className="space-y-3">
+                                <div className="flex items-center justify-between text-xs text-gray-600">
+                                    <span>{formatBytes(storageUsed)} used</span>
+                                    <span>{formatBytes(storageLimit)} total</span>
+                                </div>
+
+                                {/* Progress Bar */}
+                                <div className="relative w-full h-2 bg-gray-200 rounded-full overflow-hidden">
+                                    <div
+                                        className={`absolute left-0 top-0 h-full transition-all duration-500 ${
+                                            getStorageWarningLevel() === 'danger'
+                                                ? 'bg-red-500'
+                                                : getStorageWarningLevel() === 'warning'
+                                                    ? 'bg-yellow-500'
+                                                    : 'bg-emerald-500'
+                                        }`}
+                                        style={{ width: `${getStoragePercentage()}%` }}
+                                    />
+                                </div>
+
+                                <div className="flex items-center justify-between">
+                                    <p className="text-xs text-gray-500">
+                                        {getStoragePercentage()}% used
+                                    </p>
+                                    {getStorageWarningLevel() !== 'safe' && (
+                                        <p className={`text-xs font-medium ${
+                                            getStorageWarningLevel() === 'danger' ? 'text-red-600' : 'text-yellow-600'
+                                        }`}>
+                                            {getStorageWarningLevel() === 'danger'
+                                                ? '⚠️ Storage nearly full'
+                                                : '⚠️ Consider cleaning up'}
+                                        </p>
+                                    )}
+                                </div>
+
+                                {getStorageWarningLevel() !== 'safe' && (
+                                    <div className="pt-2 border-t border-gray-100">
+                                        <p className="text-xs text-gray-600 leading-relaxed">
+                                            Tip: Delete unused cards or clear archived conversations to free up space.
+                                        </p>
+                                    </div>
+                                )}
                             </div>
                         </div>
                     </div>
