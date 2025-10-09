@@ -57,13 +57,13 @@ export const ChatManageToolbar: React.FC<ChatManageToolbarProps> = ({
     };
 
     return (
-        <div className="mt-3 pt-3 border-t border-gray-200">
-            {/* Toolbar - 横向布局，拉长按钮 */}
-            <div className="flex items-center justify-center gap-2">
+        <div className="mt-2 pt-2 border-t border-gray-200">
+            {/* Toolbar - 横向布局，拉长按钮 - 紧凑版 */}
+            <div className="flex items-center justify-center gap-1.5">
                 {/* History Button */}
                 <button
                     onClick={handleViewHistory}
-                    className="flex items-center justify-center gap-1.5 px-3 py-2 bg-purple-100 text-purple-700 rounded-lg hover:bg-purple-200 transition-colors min-w-[80px] relative"
+                    className="flex items-center justify-center gap-1.5 px-2.5 py-1.5 bg-purple-100 text-purple-700 rounded-lg hover:bg-purple-200 transition-colors min-w-[70px] relative"
                     title="View chat history"
                 >
                     <History className="w-3.5 h-3.5" />
@@ -79,7 +79,7 @@ export const ChatManageToolbar: React.FC<ChatManageToolbarProps> = ({
                 <button
                     onClick={handleArchive}
                     disabled={!hasMessages}
-                    className="flex items-center justify-center gap-1.5 px-3 py-2 bg-blue-100 text-blue-700 rounded-lg hover:bg-blue-200 disabled:opacity-50 transition-colors min-w-[80px]"
+                    className="flex items-center justify-center gap-1.5 px-2.5 py-1.5 bg-blue-100 text-blue-700 rounded-lg hover:bg-blue-200 disabled:opacity-50 transition-colors min-w-[70px]"
                     title="Archive current conversation"
                 >
                     <Folder className="w-3.5 h-3.5" />
@@ -90,7 +90,7 @@ export const ChatManageToolbar: React.FC<ChatManageToolbarProps> = ({
                 <button
                     onClick={handleExport}
                     disabled={!hasMessages}
-                    className="flex items-center justify-center gap-1.5 px-3 py-2 bg-orange-100 text-orange-700 rounded-lg hover:bg-orange-200 disabled:opacity-50 transition-colors min-w-[80px]"
+                    className="flex items-center justify-center gap-1.5 px-2.5 py-1.5 bg-orange-100 text-orange-700 rounded-lg hover:bg-orange-200 disabled:opacity-50 transition-colors min-w-[70px]"
                     title="Export current conversation"
                 >
                     <Download className="w-3.5 h-3.5" />

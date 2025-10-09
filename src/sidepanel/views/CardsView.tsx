@@ -1,7 +1,7 @@
 // src/views/CardsView.tsx
 import React, { useState, useMemo, useCallback } from 'react';
 import { createPortal } from 'react-dom';
-import { Plus, Search, X, Check} from 'lucide-react';
+import { Plus, Search, X, Check, CheckSquare, Square } from 'lucide-react';
 import { useStore } from '../store';
 import { CardItem } from '../components/cards/CardItem';
 import { ALL_CARDS_FILTER, DEFAULT_CATEGORY, PROTECTED_CATEGORIES, STORAGE_KEYS, SAMPLE_CARD_ID } from '../utils/constants';
@@ -68,7 +68,6 @@ export const CardsView: React.FC<CardsViewProps> = ({
 
             // AI Search Mode
             if (aiSearchMode && aiMatchedCardIds.length > 0) {
-                // Only show AI matched cards
                 const matchesAI = aiMatchedCardIds.includes(card.id);
                 const matchesCategory = selectedCategory === ALL_CARDS_FILTER || cardCategory === selectedCategory;
                 return matchesAI && matchesCategory;
@@ -148,7 +147,6 @@ export const CardsView: React.FC<CardsViewProps> = ({
     };
 
     const handleAiSelectAll = () => {
-        // Select all filtered cards (excluding sample card)
         const allValidCardIds = filteredCards
             .filter(card => card.id !== SAMPLE_CARD_ID)
             .map(card => card.id);
@@ -159,14 +157,41 @@ export const CardsView: React.FC<CardsViewProps> = ({
         setAiSelectedCards([]);
     };
 
+    // Manage Mode Select All Handlers
+    const handleManageSelectAll = () => {
+        const allValidCardIds = filteredCards
+            .filter(card => card.id !== SAMPLE_CARD_ID)
+            .map(card => card.id);
+
+        // Call onCardSelect for each card to toggle them all on
+        allValidCardIds.forEach(id => {
+            if (!manageModeState?.selectedCards.includes(id)) {
+                onCardSelect?.(id);
+            }
+        });
+    };
+
+    const handleManageDeselectAll = () => {
+        // Call onCardSelect for each selected card to toggle them all off
+        manageModeState?.selectedCards.forEach(id => {
+            onCardSelect?.(id);
+        });
+    };
+
+    // Check if all cards are selected in Manage Mode
+    const allCardsSelected = useMemo(() => {
+        if (!manageModeState?.isManageMode) return false;
+        const selectableCards = filteredCards.filter(card => card.id !== SAMPLE_CARD_ID);
+        return selectableCards.length > 0 &&
+            selectableCards.every(card => manageModeState.selectedCards.includes(card.id));
+    }, [manageModeState, filteredCards]);
+
     // AI Search Handlers
     const handleToggleAiSearch = () => {
         if (aiSearchMode) {
-            // 关闭 AI 搜索
             setAiSearchMode(false);
             setAiMatchedCardIds([]);
         } else {
-            // 开启 AI 搜索
             setAiSearchMode(true);
             setAiMatchedCardIds([]);
         }
@@ -191,7 +216,6 @@ export const CardsView: React.FC<CardsViewProps> = ({
                     content: c.content
                 }));
 
-            // 检查 aiSearchCards 是否存在
             if (typeof aiSearchCards !== 'function') {
                 console.error('[CardsView] aiSearchCards is not a function');
                 setAiMatchedCardIds([]);
@@ -215,7 +239,6 @@ export const CardsView: React.FC<CardsViewProps> = ({
     };
 
     const handleAiSelectionConfirm = async () => {
-        // Filter out sample card before confirmation
         const validSelectedCards = aiSelectedCards.filter(id => id !== SAMPLE_CARD_ID);
 
         if (validSelectedCards.length === 0) {
@@ -223,25 +246,19 @@ export const CardsView: React.FC<CardsViewProps> = ({
             return;
         }
 
-        // Check if there's actual conversation
         const result = await chrome.storage.local.get(STORAGE_KEYS.CURRENT_CHAT);
         const savedMessages = result[STORAGE_KEYS.CURRENT_CHAT]?.messages || [];
         const currentMessages = messages.length > 0 ? messages : savedMessages;
 
-        // Has real conversation if there are any user or assistant messages
         const hasRealConversation = currentMessages.length > 0;
 
         if (hasRealConversation) {
-            // Update aiSelectedCards to filtered version
             setAiSelectedCards(validSelectedCards);
-            // Show dialog to choose action
             setShowNewChatDialog(true);
         } else {
-            // Direct to chat with selected cards (new conversation)
             setSelectedCardsForChat(validSelectedCards);
             setAiSelectionMode(false);
             setAiSelectedCards([]);
-            // Use setTimeout to ensure state is updated before navigation
             setTimeout(() => {
                 setCurrentView('chat');
             }, 0);
@@ -249,13 +266,10 @@ export const CardsView: React.FC<CardsViewProps> = ({
     };
 
     const handleContinueChat = async () => {
-        // Add new cards to existing selected cards (remove duplicates)
         const combinedCards = [...new Set([...selectedCardsForChat, ...aiSelectedCards])];
 
-        // Update state
         setSelectedCardsForChat(combinedCards);
 
-        // Save to storage
         await chrome.storage.local.set({
             [STORAGE_KEYS.CURRENT_CHAT]: {
                 messages,
@@ -268,7 +282,6 @@ export const CardsView: React.FC<CardsViewProps> = ({
         setAiSelectionMode(false);
         setAiSelectedCards([]);
 
-        // Navigate after ensuring state is persisted
         setCurrentView('chat');
     };
 
@@ -325,16 +338,13 @@ export const CardsView: React.FC<CardsViewProps> = ({
                         } disabled:opacity-60`}
                     />
 
-                    {/* Right side controls */}
                     <div className="absolute right-2 top-1/2 transform -translate-y-1/2 flex items-center gap-1.5">
-                        {/* Match count (AI mode with results) */}
                         {aiSearchMode && aiMatchedCardIds.length > 0 && !isAiSearching && (
                             <div className="text-[10px] text-purple-600 font-medium bg-purple-100 px-1.5 py-0.5 rounded">
                                 {aiMatchedCardIds.length}
                             </div>
                         )}
 
-                        {/* AI Toggle Switch */}
                         <button
                             onClick={handleToggleAiSearch}
                             disabled={isAiSearching}
@@ -345,13 +355,11 @@ export const CardsView: React.FC<CardsViewProps> = ({
                             } disabled:opacity-50`}
                             title={aiSearchMode ? 'Disable AI search' : 'Enable AI search'}
                         >
-                            {/* Switch knob */}
                             <span
                                 className={`absolute h-4 w-4 rounded-full bg-white shadow-sm transition-transform ${
                                     aiSearchMode ? 'translate-x-[26px]' : 'translate-x-0.5'
                                 }`}
                             />
-                            {/* AI text - positioned in the colored area */}
                             <span className={`absolute text-[9px] font-bold text-white transition-opacity ${
                                 aiSearchMode ? 'left-2' : 'right-2'
                             }`}>
@@ -441,7 +449,7 @@ export const CardsView: React.FC<CardsViewProps> = ({
 
             <div className="flex-1 overflow-y-auto overflow-x-hidden bg-gradient-to-b from-transparent to-white/30 relative">
                 {filteredCards.length > 0 ? (
-                    <div className="relative px-2 pt-1 pb-4" style={{ minHeight: `${containerHeight}px` }}>
+                    <div className="relative px-2 pt-1 pb-8" style={{ minHeight: `${containerHeight}px` }}>
                         {filteredCards.map((card, index) => {
                             const isExpanded = expandedCard === card.id;
                             const topPosition = cardPositions[card.id] ?? 0;
@@ -480,7 +488,7 @@ export const CardsView: React.FC<CardsViewProps> = ({
                 {!aiSelectionMode && !manageModeState?.isManageMode && (
                     <button
                         onClick={handleAiRobotClick}
-                        className="fixed bottom-4 left-4 hover:scale-105 active:scale-95 transition-transform z-20 group"
+                        className="fixed bottom-0.5 left-2 hover:scale-105 active:scale-95 transition-transform z-20 group"
                         title="Select cards for AI chat"
                     >
                         <AIRobotIcon size={48} />
@@ -492,8 +500,7 @@ export const CardsView: React.FC<CardsViewProps> = ({
 
                 {/* AI Selection Mode: Confirm/Cancel Buttons */}
                 {aiSelectionMode && (
-                    <div className="fixed bottom-4 left-4 right-4 flex gap-2 z-20">
-                        {/* Left side: Cancel + Select All */}
+                    <div className="fixed bottom-0 left-2 right-2 flex gap-2 z-20">
                         <div className="flex gap-2">
                             <button
                                 onClick={handleAiSelectionCancel}
@@ -503,17 +510,16 @@ export const CardsView: React.FC<CardsViewProps> = ({
                             </button>
                             <button
                                 onClick={aiSelectedCards.length === filteredCards.filter(c => c.id !== SAMPLE_CARD_ID).length ? handleAiDeselectAll : handleAiSelectAll}
-                                className="px-4 py-2 bg-blue-100 text-blue-700 text-sm rounded-lg hover:bg-blue-200 transition-colors font-medium border border-blue-300"
+                                className="px-4 py-2 bg-blue-500 text-white text-sm rounded-lg hover:bg-blue-200 transition-colors font-medium border border-blue-300"
                             >
                                 {aiSelectedCards.length === filteredCards.filter(c => c.id !== SAMPLE_CARD_ID).length ? 'Deselect All' : 'Select All'}
                             </button>
                         </div>
 
-                        {/* Right side: Confirm */}
                         <button
                             onClick={handleAiSelectionConfirm}
                             disabled={aiSelectedCards.length === 0}
-                            className="ml-auto px-4 py-2 bg-emerald-500 text-white text-sm rounded-lg hover:bg-emerald-600 transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                            className="ml-auto px-4 py-2 bg-emerald-600 text-white text-sm rounded-lg hover:bg-emerald-600 transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
                         >
                             <AIRobotIcon size={20} />
                             Confirm ({aiSelectedCards.length})
@@ -521,20 +527,40 @@ export const CardsView: React.FC<CardsViewProps> = ({
                     </div>
                 )}
 
-                {/* Add New Card Button (Right Bottom) */}
+                {/* Right Bottom Button: Add Card OR Select All (Manage Mode) */}
                 {!aiSelectionMode && (
-                    <button
-                        onClick={() => setShowAddModal(true)}
-                        className="fixed bottom-4 right-4 w-11 h-11 bg-emerald-500 text-white rounded-full shadow-lg hover:bg-emerald-600 hover:scale-105 transition-all flex items-center justify-center z-20"
-                        title="Add new card"
-                    >
-                        <Plus className="w-6 h-6" />
-                    </button>
+                    manageModeState?.isManageMode ? (
+                        <button
+                            onClick={allCardsSelected ? handleManageDeselectAll : handleManageSelectAll}
+                            className="fixed bottom-0.5 right-2 px-3 py-2 bg-blue-500 text-white rounded-lg shadow-lg hover:bg-blue-600 hover:scale-105 transition-all flex items-center gap-1.5 z-20 font-medium text-sm"
+                            title={allCardsSelected ? 'Deselect all cards' : 'Select all cards'}
+                        >
+                            {allCardsSelected ? (
+                                <>
+                                    <Square className="w-4 h-4" />
+                                    Deselect
+                                </>
+                            ) : (
+                                <>
+                                    <CheckSquare className="w-4 h-4" />
+                                    Select All
+                                </>
+                            )}
+                        </button>
+                    ) : (
+                        <button
+                            onClick={() => setShowAddModal(true)}
+                            className="fixed bottom-1 right-2 w-9 h-9 bg-emerald-500 text-white rounded-full shadow-lg hover:bg-emerald-600 hover:scale-105 transition-all flex items-center justify-center z-20"
+                            title="Add new card"
+                        >
+                            <Plus className="w-6 h-6" />
+                        </button>
+                    )
                 )}
 
                 {/* Selected Cards Count (Left Bottom) - Only in Manage Mode */}
                 {manageModeState?.isManageMode && manageModeState.selectedCards.length > 0 && (
-                    <div className="fixed bottom-4 left-4 px-4 py-2 bg-gray-800 text-white text-sm rounded-lg shadow-lg z-20">
+                    <div className="fixed bottom-0.5 left-2 px-4 py-2 bg-gray-800 text-white text-sm rounded-lg shadow-lg z-20">
                         Selected {manageModeState.selectedCards.length} card{manageModeState.selectedCards.length > 1 ? 's' : ''}
                     </div>
                 )}

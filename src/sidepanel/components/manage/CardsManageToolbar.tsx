@@ -1,4 +1,4 @@
-// src/components/cards/CardsManageToolbar.tsx
+// src/components/manage/CardsManageToolbar.tsx
 import React, { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { Trash2, Download, FolderInput, MessageSquare } from 'lucide-react';
@@ -197,14 +197,14 @@ export const CardsManageToolbar: React.FC<CardsManageToolbarProps> = ({
 
     return (
         <>
-            {/* Toolbar - 横向布局，拉长按钮 */}
-            <div className="mt-3 pt-3 border-t border-gray-200">
-                <div className="flex items-center justify-center gap-2">
+            {/* Toolbar - 横向布局，拉长按钮 - 更紧凑 */}
+            <div className="mt-2 pt-2 border-t border-gray-200">
+                <div className="flex items-center justify-center gap-1.5">
                     {/* AI Button */}
                     <button
                         onClick={handleLinkToChat}
                         disabled={validSelectedCards.length === 0}
-                        className="flex items-center justify-center gap-1.5 px-3 py-2 bg-green-100 text-green-700 rounded-lg hover:bg-green-200 disabled:opacity-50 transition-colors min-w-[80px]"
+                        className="flex items-center justify-center gap-1.5 px-2.5 py-1.5 bg-green-100 text-green-700 rounded-lg hover:bg-green-200 disabled:opacity-50 transition-colors min-w-[70px]"
                         title="Link to AI Chat"
                     >
                         <MessageSquare className="w-3.5 h-3.5" />
@@ -215,7 +215,7 @@ export const CardsManageToolbar: React.FC<CardsManageToolbarProps> = ({
                     <button
                         onClick={handleExport}
                         disabled={validSelectedCards.length === 0}
-                        className="flex items-center justify-center gap-1.5 px-3 py-2 bg-orange-100 text-orange-700 rounded-lg hover:bg-orange-200 disabled:opacity-50 transition-colors min-w-[80px]"
+                        className="flex items-center justify-center gap-1.5 px-2.5 py-1.5 bg-orange-100 text-orange-700 rounded-lg hover:bg-orange-200 disabled:opacity-50 transition-colors min-w-[70px]"
                         title="Export selected cards"
                     >
                         <Download className="w-3.5 h-3.5" />
@@ -227,7 +227,7 @@ export const CardsManageToolbar: React.FC<CardsManageToolbarProps> = ({
                         ref={categoryButtonRef}
                         onClick={() => setShowCategorySelector(!showCategorySelector)}
                         disabled={validSelectedCards.length === 0}
-                        className={`flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg transition-colors disabled:opacity-50 min-w-[80px] ${
+                        className={`flex items-center justify-center gap-1.5 px-2.5 py-1.5 rounded-lg transition-colors disabled:opacity-50 min-w-[70px] ${
                             showCategorySelector
                                 ? 'bg-blue-200 text-blue-700'
                                 : 'bg-blue-100 text-blue-700 hover:bg-blue-200'
@@ -242,7 +242,7 @@ export const CardsManageToolbar: React.FC<CardsManageToolbarProps> = ({
                     <button
                         onClick={handleDelete}
                         disabled={validSelectedCards.length === 0}
-                        className="flex items-center justify-center gap-1.5 px-3 py-2 bg-red-100 text-red-700 rounded-lg hover:bg-red-200 disabled:opacity-50 transition-colors min-w-[80px]"
+                        className="flex items-center justify-center gap-1.5 px-2.5 py-1.5 bg-red-100 text-red-700 rounded-lg hover:bg-red-200 disabled:opacity-50 transition-colors min-w-[70px]"
                         title="Delete selected cards"
                     >
                         <Trash2 className="w-3.5 h-3.5" />

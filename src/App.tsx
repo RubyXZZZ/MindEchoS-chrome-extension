@@ -88,7 +88,10 @@ function App() {
             />
 
             <div className="flex-1 overflow-hidden relative">
-                {currentView === 'cards' && (
+                {/* ✅ 修复：使用 CSS 隐藏而不是条件渲染 */}
+                <div
+                    className={`h-full ${currentView === 'cards' ? 'block' : 'hidden'}`}
+                >
                     <CardsView
                         manageModeState={manageState.view === 'cards' ? {
                             isManageMode: manageState.isManageMode,
@@ -99,11 +102,19 @@ function App() {
                         }}
                         onCardSelect={handleCardSelect}
                     />
-                )}
+                </div>
 
-                {currentView === 'chat' && <ChatView />}
+                <div
+                    className={`h-full ${currentView === 'chat' ? 'block' : 'hidden'}`}
+                >
+                    <ChatView />
+                </div>
 
-                {currentView === 'settings' && <SettingsView />}
+                <div
+                    className={`h-full ${currentView === 'settings' ? 'block' : 'hidden'}`}
+                >
+                    <SettingsView />
+                </div>
             </div>
 
             <AddCardModal />

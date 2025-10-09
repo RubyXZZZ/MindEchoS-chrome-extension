@@ -114,8 +114,8 @@ export const NavigationBar: React.FC<NavigationBarProps> = ({
 
     return (
         <div className="bg-white/95 backdrop-blur-sm border-b border-gray-200/50">
-            <div className="px-4 py-2">
-                <div className="flex items-center gap-3">
+            <div className="px-3 py-1">
+                <div className="flex items-center gap-2">
                     {/* Settings Button */}
                     <button
                         onClick={handleLogoClick}
@@ -132,9 +132,9 @@ export const NavigationBar: React.FC<NavigationBarProps> = ({
                     <div className="relative bg-gray-200 rounded-lg p-0.5 flex flex-shrink-0">
                         {/* Sliding Green Background */}
                         <div
-                            className="absolute top-0.5 bottom-0.5 left-0.5 w-[72px] bg-emerald-500 rounded-md shadow-md transition-transform duration-300 ease-out"
+                            className="absolute top-0.5 bottom-0.5 left-0.5 w-[68px] bg-emerald-500 rounded-md shadow-md transition-transform duration-300 ease-out"
                             style={{
-                                transform: displayView === 'cards' ? 'translateX(0)' : 'translateX(72px)',
+                                transform: displayView === 'cards' ? 'translateX(0)' : 'translateX(68px)',
                                 willChange: 'transform'
                             }}
                         />
@@ -142,7 +142,7 @@ export const NavigationBar: React.FC<NavigationBarProps> = ({
                         {/* Buttons */}
                         <button
                             onClick={() => handleViewChange('cards')}
-                            className={`relative z-10 w-[72px] py-1.5 rounded-md text-sm font-medium transition-colors duration-300 ${
+                            className={`relative z-10 w-[68px] py-1.5 rounded-md text-sm font-medium transition-colors duration-300 ${
                                 displayView === 'cards'
                                     ? 'text-white'
                                     : 'text-gray-700 hover:text-gray-900'
@@ -152,7 +152,7 @@ export const NavigationBar: React.FC<NavigationBarProps> = ({
                         </button>
                         <button
                             onClick={() => handleViewChange('chat')}
-                            className={`relative z-10 w-[72px] py-1.5 rounded-md text-sm font-medium transition-colors duration-300 ${
+                            className={`relative z-10 w-[68px] py-1.5 rounded-md text-sm font-medium transition-colors duration-300 ${
                                 displayView === 'chat'
                                     ? 'text-white'
                                     : 'text-gray-700 hover:text-gray-900'
@@ -168,7 +168,7 @@ export const NavigationBar: React.FC<NavigationBarProps> = ({
                     {/* Manage Button */}
                     <button
                         onClick={handleManageClick}
-                        className={`w-[72px] h-8 text-sm font-medium rounded-lg transition-all flex items-center justify-center gap-1 flex-shrink-0 ${
+                        className={`w-[76px] h-7 text-sm font-medium rounded-lg transition-all flex items-center justify-center gap-1 flex-shrink-0 ${
                             isManageMode
                                 ? 'bg-gray-800 text-white hover:bg-gray-900'
                                 : 'bg-emerald-500 text-white hover:bg-emerald-600'

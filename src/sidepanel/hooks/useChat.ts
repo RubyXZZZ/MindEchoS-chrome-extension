@@ -35,7 +35,9 @@ export function useChat() {
     const selectedCards = cards.filter(c => selectedCardsForChat.includes(c.id));
 
     // 加载对话
-    useEffect(() => { loadCurrentChat(); }, []);
+    useEffect(() => {
+        loadCurrentChat();
+    }, []);
 
     // 保存对话（生成完成后）
     useEffect(() => {
@@ -53,7 +55,9 @@ export function useChat() {
                 return;
             }
 
-            const currentCardsKey = JSON.stringify(selectedCardsForChat.sort());
+            // 创建副本再排序，避免修改原数组
+            const currentCardsKey = JSON.stringify([...selectedCardsForChat].sort());
+
             if (lastInitCardsRef.current === currentCardsKey && sessionReady) {
                 return;
             }
@@ -387,7 +391,7 @@ export function useChat() {
         handleArchiveAndNew,
         handleScroll,
         toggleCard,
-        setCardsSelection,  // ← 添加
+        setCardsSelection,
         setInputMessage
     };
 }

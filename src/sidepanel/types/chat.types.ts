@@ -8,7 +8,7 @@ export interface ChatMessage {
     content: string;
     timestamp: number;
     mode: 'chat';
-    status?: 'pending' | 'accepted';
+    status?: 'pending' | 'accepted'| 'rejected';
     triggeredBy?: string;
 }
 
