@@ -1,27 +1,10 @@
 // services/ai/promptAI.ts
-// Chrome Prompt API 实现
+// Chrome Prompt API Implementation
 
-interface PromptSession {
-    prompt(input: string, options?: { signal?: AbortSignal }): Promise<string>;
-    promptStreaming(input: string, options?: { signal?: AbortSignal }): AsyncIterable<string>;
-    destroy(): void;
-    clone(): Promise<PromptSession>;
-    inputUsage?: number;
-    inputQuota?: number;
-}
-
-declare global {
-    class LanguageModel {
-        static availability(): Promise<'readily' | 'after-download' | 'no'>;
-        static create(options?: {
-            temperature?: number;
-            topK?: number;
-            initialPrompts?: Array<{ role: string; content: string }>;
-            signal?: AbortSignal;
-            monitor?: (m: { addEventListener: (event: string, callback: (e: { loaded: number; total: number }) => void) => void }) => void;
-        }): Promise<PromptSession>;
-    }
-}
+import type {
+    PromptSession,
+    AIAvailability
+} from '../../types/ai.types';
 
 // 集中管理所有功能的 Prompts
 export const FUNCTION_PROMPTS = {
@@ -121,7 +104,7 @@ export class PromptAI {
         return PromptAI.instance;
     }
 
-    async checkAvailability(): Promise<'readily' | 'after-download' | 'no'> {
+    async checkAvailability(): Promise<AIAvailability> {
         try {
             if (!('LanguageModel' in self)) {
                 return 'no';
