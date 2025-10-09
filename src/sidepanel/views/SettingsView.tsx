@@ -1,12 +1,13 @@
 import React, { useState, useEffect } from 'react';
-import { ArrowLeft, Trash2, Calendar, MessageSquare, Archive as ArchiveIcon, Hash, RotateCcw, Check, Keyboard, Settings, HardDrive } from 'lucide-react';
+import { ArrowLeft, Trash2, Archive as ArchiveIcon, Hash, RotateCcw, Check, Keyboard, Settings, HardDrive, Layers } from 'lucide-react';
 import { useStore } from '../store';
-import { formatTime } from '../utils/formatters';
+import { getArchiveCardsSummary } from '../utils/formatters';
 import { STORAGE_KEYS } from '../utils/constants';
 import { ConfirmDialog } from '../components/modals/ConfirmDialog';
 
 export const SettingsView: React.FC = () => {
     const {
+        cards,
         chatArchives,
         loadChatArchives,
         loadArchive,
@@ -352,51 +353,54 @@ export const SettingsView: React.FC = () => {
                                 </div>
 
                                 <div className="space-y-3">
-                                    {chatArchives.map(archive => (
-                                        <div
-                                            key={archive.id}
-                                            className="bg-white rounded-lg border border-gray-200 p-4 hover:border-emerald-300 transition-colors"
-                                        >
-                                            <div className="flex items-start justify-between mb-2">
-                                                <div className="flex-1 min-w-0">
-                                                    <h4 className="text-sm font-medium text-gray-900 truncate mb-1">
-                                                        {archive.title}
-                                                    </h4>
-                                                    <div className="flex items-center gap-3 text-xs text-gray-500">
-                                                        <span className="flex items-center gap-1">
-                                                            <MessageSquare className="w-3 h-3" />
-                                                            {archive.messages.length} messages
-                                                        </span>
-                                                        <span className="flex items-center gap-1">
-                                                            <Calendar className="w-3 h-3" />
-                                                            {formatTime(archive.archivedAt)}
-                                                        </span>
+                                    {chatArchives.map(archive => {
+                                        const cardsSummary = getArchiveCardsSummary(archive.selectedCards, cards);
+
+                                        return (
+                                            <div
+                                                key={archive.id}
+                                                className="bg-white rounded-lg border border-gray-200 p-4 hover:border-emerald-300 transition-colors"
+                                            >
+                                                <div className="flex items-start justify-between mb-2">
+                                                    <div className="flex-1 min-w-0">
+                                                        {/* 时间标题 */}
+                                                        <h4 className="text-sm font-semibold text-gray-900 mb-1.5">
+                                                            📅 {archive.title}
+                                                        </h4>
+
+                                                        {/* 卡片信息 */}
+                                                        {archive.selectedCards.length > 0 && (
+                                                            <div className="flex items-center gap-1.5 text-xs text-gray-600 mb-1">
+                                                                <Layers className="w-3 h-3 flex-shrink-0" />
+                                                                <span className="truncate">{cardsSummary}</span>
+                                                            </div>
+                                                        )}
                                                     </div>
                                                 </div>
-                                            </div>
 
-                                            {/* Preview */}
-                                            <div className="text-xs text-gray-600 mb-3 line-clamp-2">
-                                                {archive.messages[0]?.content}
-                                            </div>
+                                                {/* Preview */}
+                                                <div className="text-xs text-gray-600 mb-3 line-clamp-2">
+                                                    {archive.messages[0]?.content}
+                                                </div>
 
-                                            {/* Actions */}
-                                            <div className="flex gap-2">
-                                                <button
-                                                    onClick={() => handleLoadArchive(archive.id)}
-                                                    className="flex-1 px-3 py-1.5 bg-emerald-50 text-emerald-700 text-xs rounded hover:bg-emerald-100 font-medium"
-                                                >
-                                                    Load Chat
-                                                </button>
-                                                <button
-                                                    onClick={() => handleDeleteArchive(archive.id)}
-                                                    className="px-3 py-1.5 bg-red-50 text-red-700 text-xs rounded hover:bg-red-100 flex items-center gap-1"
-                                                >
-                                                    <Trash2 className="w-3 h-3" />
-                                                </button>
+                                                {/* Actions */}
+                                                <div className="flex gap-2">
+                                                    <button
+                                                        onClick={() => handleLoadArchive(archive.id)}
+                                                        className="flex-1 px-3 py-1.5 bg-emerald-50 text-emerald-700 text-xs rounded hover:bg-emerald-100 font-medium"
+                                                    >
+                                                        Load Chat
+                                                    </button>
+                                                    <button
+                                                        onClick={() => handleDeleteArchive(archive.id)}
+                                                        className="px-3 py-1.5 bg-red-50 text-red-700 text-xs rounded hover:bg-red-100 flex items-center gap-1"
+                                                    >
+                                                        <Trash2 className="w-3 h-3" />
+                                                    </button>
+                                                </div>
                                             </div>
-                                        </div>
-                                    ))}
+                                        );
+                                    })}
                                 </div>
                             </>
                         )}

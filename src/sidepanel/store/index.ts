@@ -10,6 +10,7 @@ import {
     SAMPLE_CARD_ID  // ← 添加导入
 } from '../utils/constants';
 import { generateArchiveId } from '../utils/idGenerator';
+import { formatArchiveDate } from '../utils/formatters';
 
 interface SelectionPayload {
     text: string;
@@ -409,10 +410,8 @@ export const useStore = create<AppState>((set, get) => ({
                 return;
             }
 
-            const firstUserMsg = state.messages.find(m => m.role === 'user');
-            const title = firstUserMsg
-                ? firstUserMsg.content.substring(0, 50) + (firstUserMsg.content.length > 50 ? '...' : '')
-                : 'Untitled Chat';
+            // 使用归档时间作为标题
+            const title = formatArchiveDate(Date.now());
 
             const archive: ChatArchive = {
                 id: generateArchiveId(),
@@ -442,7 +441,7 @@ export const useStore = create<AppState>((set, get) => ({
             // 更新存储使用量
             get().updateStorageUsage();
 
-            console.log('[Store] Chat archived:', archive.id);
+            console.log('[Store] Chat archived:', archive.id, 'Title:', title);
         } catch (error) {
             console.error('[Store] Error archiving chat:', error);
         }
