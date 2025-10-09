@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { ArrowLeft, Trash2, Archive as ArchiveIcon, Hash, RotateCcw, Check, Keyboard, Settings, HardDrive, Layers } from 'lucide-react';
+import { ArrowLeft, Trash2, Archive as ArchiveIcon, RotateCcw, Check, Keyboard, Settings, HardDrive, Layers } from 'lucide-react';
 import { useStore } from '../store';
 import { getArchiveCardsSummary } from '../utils/formatters';
 import { STORAGE_KEYS } from '../utils/constants';
@@ -13,8 +13,6 @@ export const SettingsView: React.FC = () => {
         loadArchive,
         deleteArchive,
         setCurrentView,
-        showCardNumbers,
-        setShowCardNumbers,
         resetCardNumbers,
         storageUsed,
         storageLimit,
@@ -187,58 +185,40 @@ export const SettingsView: React.FC = () => {
                             </div>
                         </div>
 
-                        {/* Card Display Settings */}
+                        {/* Card Numbers Section */}
                         <div className="bg-white rounded-lg border border-gray-200 p-4">
-                            <div className="flex items-center gap-2 mb-3">
-                                <Hash className="w-4 h-4 text-gray-600" />
-                                <h3 className="text-sm font-semibold text-gray-900">Card Display</h3>
-                            </div>
+                            <h3 className="text-sm font-semibold text-gray-900 mb-3">Card Numbers</h3>
 
                             <div className="space-y-3">
-                                {/* Show Card Numbers Toggle */}
-                                <div className="flex items-center justify-between py-2">
-                                    <div>
-                                        <p className="text-sm text-gray-700 font-medium">Show Card Numbers</p>
-                                        <p className="text-xs text-gray-500 mt-0.5">Display sequential numbers on cards</p>
-                                    </div>
-                                    <label className="relative inline-flex items-center cursor-pointer">
-                                        <input
-                                            type="checkbox"
-                                            checked={showCardNumbers}
-                                            onChange={(e) => setShowCardNumbers(e.target.checked)}
-                                            className="sr-only peer"
-                                        />
-                                        <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-emerald-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-500"></div>
-                                    </label>
-                                </div>
+                                <p className="text-xs text-gray-600">
+                                    All cards are numbered sequentially based on creation time. Use the button below to renumber cards if needed.
+                                </p>
 
                                 {/* Reset Card Numbers Button */}
-                                <div className="pt-2 border-t border-gray-100">
-                                    <button
-                                        onClick={() => setShowResetConfirm(true)}
-                                        disabled={resetSuccess}
-                                        className={`w-full px-4 py-2 text-sm rounded-lg font-medium flex items-center justify-center gap-2 transition-colors ${
-                                            resetSuccess
-                                                ? 'bg-green-50 text-green-700 border border-green-200'
-                                                : 'bg-amber-50 text-amber-700 border border-amber-200 hover:bg-amber-100'
-                                        } disabled:cursor-default`}
-                                    >
-                                        {resetSuccess ? (
-                                            <>
-                                                <Check className="w-4 h-4" />
-                                                Reset Complete
-                                            </>
-                                        ) : (
-                                            <>
-                                                <RotateCcw className="w-4 h-4" />
-                                                Reset Card Numbers
-                                            </>
-                                        )}
-                                    </button>
-                                    <p className="text-xs text-gray-500 mt-2">
-                                        Renumber all cards sequentially based on creation time. This will eliminate any gaps in numbering.
-                                    </p>
-                                </div>
+                                <button
+                                    onClick={() => setShowResetConfirm(true)}
+                                    disabled={resetSuccess}
+                                    className={`w-full px-4 py-2 text-sm rounded-lg font-medium flex items-center justify-center gap-2 transition-colors ${
+                                        resetSuccess
+                                            ? 'bg-green-50 text-green-700 border border-green-200'
+                                            : 'bg-amber-50 text-amber-700 border border-amber-200 hover:bg-amber-100'
+                                    } disabled:cursor-default`}
+                                >
+                                    {resetSuccess ? (
+                                        <>
+                                            <Check className="w-4 h-4" />
+                                            Reset Complete
+                                        </>
+                                    ) : (
+                                        <>
+                                            <RotateCcw className="w-4 h-4" />
+                                            Reset Card Numbers
+                                        </>
+                                    )}
+                                </button>
+                                <p className="text-xs text-gray-500">
+                                    Renumber all cards sequentially based on creation time. This will eliminate any gaps in numbering.
+                                </p>
                             </div>
                         </div>
 

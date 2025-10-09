@@ -18,14 +18,8 @@ declare global {
             topK?: number;
             initialPrompts?: Array<{ role: string; content: string }>;
             signal?: AbortSignal;
-            monitor?: (m: any) => void;
+            monitor?: (m: { addEventListener: (event: string, callback: (e: { loaded: number; total: number }) => void) => void }) => void;
         }): Promise<PromptSession>;
-        static params(): Promise<{
-            defaultTopK: number;
-            maxTopK: number;
-            defaultTemperature: number;
-            maxTemperature: number;
-        }>;
     }
 }
 
@@ -104,7 +98,6 @@ Requirements:
 3. About Format: Use ## headers, 2-3 sentences per paragraph, bullets for lists
 4. About Length: 350 words maximum.
 
-
 Output an initial version requiring editing and refinement.`
     }
 };
@@ -112,7 +105,12 @@ Output an initial version requiring editing and refinement.`
 export class PromptAI {
     private static instance: PromptAI | null = null;
     private session: PromptSession | null = null;
-    private currentCards: Array<{ title: string; content: string; url?: string }> = [];
+    private currentCards: Array<{
+        title: string;
+        content: string;
+        url?: string;
+        displayNumber: number;
+    }> = [];
 
     private constructor() {}
 
@@ -126,21 +124,17 @@ export class PromptAI {
     async checkAvailability(): Promise<'readily' | 'after-download' | 'no'> {
         try {
             if (!('LanguageModel' in self)) {
-                console.warn('[PromptAI] Prompt API not supported');
                 return 'no';
             }
-
-            const availability = await LanguageModel.availability();
-            console.log('[PromptAI] Availability:', availability);
-            return availability;
+            return await LanguageModel.availability();
         } catch (error) {
-            console.error('[PromptAI] Error checking availability:', error);
+            console.error('[PromptAI] Availability check failed:', error);
             return 'no';
         }
     }
 
     async createSession(
-        cards: Array<{ title: string; content: string; url?: string }> = []
+        cards: Array<{ title: string; content: string; url?: string; displayNumber: number }> = []
     ): Promise<boolean> {
         try {
             const availability = await this.checkAvailability();
@@ -151,7 +145,6 @@ export class PromptAI {
             const validCards = Array.isArray(cards) ? cards : [];
 
             if (this.session && JSON.stringify(this.currentCards) === JSON.stringify(validCards)) {
-                console.log('[PromptAI] Reusing existing session');
                 return true;
             }
 
@@ -162,52 +155,48 @@ export class PromptAI {
 
             this.currentCards = validCards;
 
-            const systemPrompt = this.getSystemPrompt(validCards);
+            const prompt = this.getSystemPrompt(validCards);
 
             this.session = await LanguageModel.create({
                 temperature: 0.8,
                 topK: 40,
-                initialPrompts: systemPrompt ? [
-                    { role: 'system', content: systemPrompt }
-                ] : [],
-                monitor(m) {
-                    m.addEventListener('downloadprogress', (e: any) => {
-                        console.log(`[PromptAI] Model download progress: ${Math.round(e.loaded * 100)}%`);
-                    });
-                }
+                initialPrompts: prompt ? [{ role: 'system', content: prompt }] : []
             });
 
-            console.log('[PromptAI] Session created with', validCards.length, 'cards');
-            if (this.session?.inputQuota) {
-                console.log('[PromptAI] Token quota:', this.session.inputQuota);
-            }
-
+            console.log('[PromptAI] Session created:', validCards.length, 'cards');
             return true;
         } catch (error) {
-            console.error('[PromptAI] Failed to create session:', error);
+            console.error('[PromptAI] Session creation failed:', error);
             return false;
         }
     }
 
-    private getSystemPrompt(cards: Array<{ title: string; content: string; url?: string }>): string {
+    private getSystemPrompt(cards: Array<{ title: string; content: string; url?: string; displayNumber: number }>): string {
         const validCards = Array.isArray(cards) ? cards : [];
 
-        const cardContext = validCards.length > 0
-            ? `\n\n## Knowledge Cards Context:\n${validCards.map((c, index) =>
-                `**Card ${index + 1}: ${c.title}**\n${c.content}${c.url ? `\nSource: ${c.url}` : ''}`
-            ).join('\n\n')}\n\nUse these cards as the knowledge base for your response.`
-            : '';
+        if (validCards.length === 0) {
+            return `You are an intelligent assistant helping users work with their knowledge cards and questions.
 
-        const systemPrompt = `You are an intelligent assistant helping users work with their knowledge cards and questions.
+Format Rules (Narrow Chrome Extension):
+- Paragraphs: 2-3 sentences maximum
+- Lists: Use bullet points
+- Tables: If >3 columns needed, transpose (swap rows/columns) so columns < rows
+- Style: Direct and concise, no filler`;
+        }
+
+        const cardContext = `\n\n## Knowledge Cards Context:\n${validCards.map((c) =>
+            `**Card ${c.displayNumber}: ${c.title}**\n${c.content}${c.url ? `\nSource: ${c.url}` : ''}`
+        ).join('\n\n')}\n\nUse these cards as the knowledge base for your response. When referring to cards, use their exact Card numbers.`;
+
+        return `You are an intelligent assistant helping users work with their knowledge cards and questions.
 
 Format Rules (Narrow Chrome Extension):
 - Paragraphs: 2-3 sentences maximum
 - Lists: Use bullet points
 - Tables: If >3 columns needed, transpose (swap rows/columns) so columns < rows
 - Style: Direct and concise, no filler
+- When referring to cards, ALWAYS use their exact Card numbers from the context
 ${cardContext}`;
-
-        return systemPrompt;
     }
 
     async sendMessageStreaming(
@@ -216,7 +205,7 @@ ${cardContext}`;
         signal?: AbortSignal
     ): Promise<string> {
         if (!this.session) {
-            throw new Error('Session not created. Call createSession first.');
+            throw new Error('Session not created');
         }
 
         try {
@@ -243,30 +232,39 @@ ${cardContext}`;
             }
 
             return accumulatedText;
-        } catch (error: any) {
+        } catch (err) {
+            const error = err as Error;
             if (error.name === 'AbortError') {
                 throw error;
             }
-            console.error('[PromptAI] Streaming error:', error);
+            console.error('[PromptAI] Streaming failed:', error);
             throw error;
         }
     }
 
-    async sendMessage(message: string, signal?: AbortSignal): Promise<string> {
-        if (!this.session) {
-            throw new Error('Session not created.');
-        }
+    async cloneSession(): Promise<boolean> {
+        if (!this.session) return false;
 
         try {
-            return await this.session.prompt(message, { signal });
-        } catch (error: any) {
-            if (error.name === 'AbortError') {
-                throw error;
-            }
-            throw error;
+            const clonedSession = await this.session.clone();
+            this.session.destroy();
+            this.session = clonedSession;
+            return true;
+        } catch {
+            return false;
         }
     }
 
+    destroySession() {
+        if (this.session) {
+            this.session.destroy();
+            this.session = null;
+            this.currentCards = [];
+        }
+    }
+
+    // if needed for token monitoring
+    /*
     getTokenUsage(): { used: number; quota: number; percentage: number } | null {
         if (!this.session?.inputUsage || !this.session?.inputQuota) {
             return null;
@@ -278,37 +276,5 @@ ${cardContext}`;
             percentage: (this.session.inputUsage / this.session.inputQuota) * 100
         };
     }
-
-    async cloneSession(): Promise<boolean> {
-        if (!this.session) return false;
-
-        try {
-            const clonedSession = await this.session.clone();
-            this.session.destroy();
-            this.session = clonedSession;
-            return true;
-        } catch (error) {
-            return false;
-        }
-    }
-
-    destroySession() {
-        if (this.session) {
-            this.session.destroy();
-            this.session = null;
-            this.currentCards = [];
-            console.log('[PromptAI] Session destroyed');
-        }
-    }
-
-    async getParams(): Promise<any> {
-        try {
-            if ('LanguageModel' in self && LanguageModel.params) {
-                return await LanguageModel.params();
-            }
-        } catch (error) {
-            console.error('[PromptAI] Failed to get params:', error);
-        }
-        return null;
-    }
+    */
 }

@@ -7,7 +7,7 @@ import {
     PROTECTED_CATEGORIES,
     STORAGE_KEYS,
     CARD_COLORS,
-    SAMPLE_CARD_ID  // ← 添加导入
+    SAMPLE_CARD_ID
 } from '../utils/constants';
 import { generateArchiveId } from '../utils/idGenerator';
 import { formatArchiveDate } from '../utils/formatters';
@@ -36,9 +36,6 @@ interface AppState {
     selectedCardsForChat: string[];
     isTyping: boolean;
     chatArchives: ChatArchive[];
-
-    // Settings
-    showCardNumbers: boolean;
 
     // Storage
     storageUsed: number;
@@ -83,8 +80,6 @@ interface AppState {
     loadChatArchives: () => Promise<void>;
 
     // Settings Actions
-    loadSettings: () => Promise<void>;
-    setShowCardNumbers: (show: boolean) => Promise<void>;
     resetCardNumbers: () => Promise<void>;
 
     // Storage Actions
@@ -111,9 +106,6 @@ export const useStore = create<AppState>((set, get) => ({
     selectedCardsForChat: [],
     isTyping: false,
     chatArchives: [],
-
-    // === Settings State ===
-    showCardNumbers: true,
 
     // === Storage State ===
     storageUsed: 0,
@@ -179,7 +171,7 @@ export const useStore = create<AppState>((set, get) => ({
 
             if (!result[STORAGE_KEYS.CARDS] || !Array.isArray(result[STORAGE_KEYS.CARDS])) {
                 const sampleCard: KnowledgeCard = {
-                    id: SAMPLE_CARD_ID,  // ← 使用常量
+                    id: SAMPLE_CARD_ID,
                     displayNumber: 0,
                     title: '欢迎使用知识卡片!',
                     content: '这是一个示例卡片。你可以使用右键菜单或快捷键从任何网页上捕获选中的文本来创建新卡片。',
@@ -217,7 +209,6 @@ export const useStore = create<AppState>((set, get) => ({
             set({ cards: newCards });
             await chrome.storage.local.set({ [STORAGE_KEYS.CARDS]: newCards });
 
-            // 更新存储使用量
             get().updateStorageUsage();
         } catch (error) {
             console.error('Error adding card:', error);
@@ -236,7 +227,6 @@ export const useStore = create<AppState>((set, get) => ({
             set({ cards: newCards });
             await chrome.storage.local.set({ [STORAGE_KEYS.CARDS]: newCards });
 
-            // 更新存储使用量
             get().updateStorageUsage();
         } catch (error) {
             console.error('Error updating card:', error);
@@ -251,7 +241,6 @@ export const useStore = create<AppState>((set, get) => ({
             set({ cards: newCards });
             await chrome.storage.local.set({ [STORAGE_KEYS.CARDS]: newCards });
 
-            // 更新存储使用量
             get().updateStorageUsage();
         } catch (error) {
             console.error('Error deleting card:', error);
@@ -307,7 +296,6 @@ export const useStore = create<AppState>((set, get) => ({
                 [STORAGE_KEYS.USER_CATEGORIES]: newUserCategories
             });
 
-            // 更新存储使用量
             get().updateStorageUsage();
         } catch (error) {
             console.error('Error deleting category and cards:', error);
@@ -438,7 +426,6 @@ export const useStore = create<AppState>((set, get) => ({
 
             await chrome.storage.local.remove(STORAGE_KEYS.CURRENT_CHAT);
 
-            // 更新存储使用量
             get().updateStorageUsage();
 
             console.log('[Store] Chat archived:', archive.id, 'Title:', title);
@@ -471,7 +458,6 @@ export const useStore = create<AppState>((set, get) => ({
                 [STORAGE_KEYS.CHAT_ARCHIVES]: newArchives
             });
 
-            // 更新存储使用量
             get().updateStorageUsage();
 
             console.log('[Store] Archive deleted:', archiveId);
@@ -495,25 +481,6 @@ export const useStore = create<AppState>((set, get) => ({
 
     // === Settings Actions ===
 
-    loadSettings: async () => {
-        try {
-            const result = await chrome.storage.local.get([STORAGE_KEYS.SHOW_CARD_NUMBERS]);
-            const showCardNumbers = result[STORAGE_KEYS.SHOW_CARD_NUMBERS] !== false;
-            set({ showCardNumbers });
-        } catch (error) {
-            console.error('[Store] Error loading settings:', error);
-        }
-    },
-
-    setShowCardNumbers: async (show: boolean) => {
-        try {
-            await chrome.storage.local.set({ [STORAGE_KEYS.SHOW_CARD_NUMBERS]: show });
-            set({ showCardNumbers: show });
-        } catch (error) {
-            console.error('[Store] Error setting show card numbers:', error);
-        }
-    },
-
     resetCardNumbers: async () => {
         try {
             const state = get();
@@ -522,7 +489,7 @@ export const useStore = create<AppState>((set, get) => ({
             let nextNumber = 1;
             const updatedCards = cards.map((card) => {
                 // Sample 卡片保持编号 0
-                if (card.id === SAMPLE_CARD_ID) {  // ← 使用常量
+                if (card.id === SAMPLE_CARD_ID) {
                     return { ...card, displayNumber: 0 };
                 }
                 const displayNumber = nextNumber;

@@ -1,6 +1,4 @@
 // hooks/useChat.ts
-// 集中管理 Chat 功能的所有业务逻辑
-
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { useStore } from '../store';
 import { usePromptAPI } from './usePromptAPI';
@@ -18,7 +16,7 @@ export function useChat() {
 
     const {
         isAvailable, isChecking, isGenerating,
-        initializeSession, sendMessage, generateImprovement, destroySession
+        initializeSession, sendMessage, destroySession
     } = usePromptAPI();
 
     const [inputMessage, setInputMessage] = useState('');
@@ -57,7 +55,6 @@ export function useChat() {
 
             const currentCardsKey = JSON.stringify(selectedCardsForChat.sort());
             if (lastInitCardsRef.current === currentCardsKey && sessionReady) {
-                console.log('[useChat] Session ready');
                 return;
             }
 
@@ -69,10 +66,7 @@ export function useChat() {
                 if (success) {
                     lastInitCardsRef.current = currentCardsKey;
                     setSessionReady(true);
-                    console.log('[useChat] Session ready');
                 }
-            } catch (error) {
-                console.error('[useChat] Init error:', error);
             } finally {
                 setIsInitializing(false);
             }
@@ -124,6 +118,11 @@ export function useChat() {
                 : [...selectedCardsForChat, cardId]
         );
     }, [selectedCardsForChat, setSelectedCardsForChat]);
+
+    // 直接设置卡片选择（用于批量操作）
+    const setCardsSelection = useCallback((cardIds: string[]) => {
+        setSelectedCardsForChat(cardIds);
+    }, [setSelectedCardsForChat]);
 
     const handleNewConversation = useCallback(() => {
         if (isGenerating) return;
@@ -346,49 +345,12 @@ export function useChat() {
         abortController.current = null;
     }, []);
 
-    const handleReject = useCallback(async (msgId: string) => {
-        const msg = messages.find(m => m.id === msgId);
-        if (!msg) return;
-
-        const reason = prompt('What would you like to improve?');
-        if (!reason) return;
-
-        updateMessage(msgId, { status: 'rejected', rejectionReason: reason });
-
-        const improvedMsgId = (Date.now() + 1).toString();
-        addMessage({
-            id: improvedMsgId,
-            role: 'assistant',
-            content: '',
-            timestamp: Date.now(),
-            mode: 'chat',
-            status: 'pending'
-        });
-
-        abortController.current = new AbortController();
-        try {
-            await generateImprovement(
-                msg.content,
-                reason,
-                (text) => updateMessage(improvedMsgId, { content: text }),
-                abortController.current.signal
-            );
-            updateMessage(improvedMsgId, { status: 'accepted' });
-        } catch {
-            updateMessage(improvedMsgId, { content: 'Failed to improve', status: 'rejected' });
-        } finally {
-            abortController.current = null;
-        }
-    }, [messages, addMessage, updateMessage, generateImprovement]);
-
     const handleCopy = useCallback(async (msgId: string) => {
         const msg = messages.find(m => m.id === msgId);
         if (!msg) return;
 
         try {
             await navigator.clipboard.writeText(msg.content);
-            console.log('[useChat] Content copied to clipboard');
-            // TODO: 可选添加成功提示 toast
         } catch (error) {
             console.error('[useChat] Copy failed:', error);
         }
@@ -419,13 +381,13 @@ export function useChat() {
         handleWriteTask,
         handleSend,
         handleStop,
-        handleReject,
         handleCopy,
         handleNewConversation,
         handleDeleteAndNew,
         handleArchiveAndNew,
         handleScroll,
         toggleCard,
+        setCardsSelection,  // ← 添加
         setInputMessage
     };
 }

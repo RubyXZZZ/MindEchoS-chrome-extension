@@ -9,7 +9,7 @@ interface ChatTopBarProps {
     selectedCards: KnowledgeCard[];
     allCards: KnowledgeCard[];
     selectedCardIds: string[];
-    onToggleCard: (cardId: string) => void;
+    onSelectionChange: (cardIds: string[]) => void;  // ← 改为直接设置
     onNewChat: () => void;
     isGenerating: boolean;
     isInitializing: boolean;
@@ -19,7 +19,7 @@ export const ChatTopBar: React.FC<ChatTopBarProps> = ({
                                                           selectedCards,
                                                           allCards,
                                                           selectedCardIds,
-                                                          onToggleCard,
+                                                          onSelectionChange,
                                                           onNewChat,
                                                           isGenerating,
                                                           isInitializing
@@ -89,13 +89,8 @@ export const ChatTopBar: React.FC<ChatTopBarProps> = ({
     };
 
     const handleConfirm = () => {
-        // Apply temp selection to actual selection
-        const toAdd = tempSelectedIds.filter(id => !selectedCardIds.includes(id));
-        const toRemove = selectedCardIds.filter(id => !tempSelectedIds.includes(id));
-
-        toRemove.forEach(id => onToggleCard(id));
-        toAdd.forEach(id => onToggleCard(id));
-
+        // 直接设置最终选中状态（一次性更新）
+        onSelectionChange([...tempSelectedIds]);
         handleClose();
     };
 
@@ -151,14 +146,11 @@ export const ChatTopBar: React.FC<ChatTopBarProps> = ({
                 </button>
             </div>
 
-            {/* Card Selector Dropdown - Fixed positioning for sidepanel */}
+            {/* Card Selector Dropdown */}
             {showSelector && (
                 <>
                     {/* Backdrop */}
-                    <div
-                        className="fixed inset-0 z-40"
-                        onClick={handleClose}
-                    />
+                    <div className="fixed inset-0 z-40" onClick={handleClose} />
 
                     {/* Dropdown */}
                     <div className="fixed top-12 left-2 right-2 bg-white rounded-xl shadow-2xl border border-gray-200 z-50 max-w-md mx-auto">
@@ -236,9 +228,17 @@ export const ChatTopBar: React.FC<ChatTopBarProps> = ({
                                                 />
                                                 <div className="flex-1 min-w-0">
                                                     <div className="flex items-center gap-2 mb-0.5">
+                                                        {/* 卡片编号 */}
+                                                        {card.displayNumber > 0 && (
+                                                            <span className="text-emerald-600 font-semibold text-xs flex-shrink-0">
+                                                                #{card.displayNumber}
+                                                            </span>
+                                                        )}
+                                                        {/* 卡片标题 */}
                                                         <p className="text-sm font-medium text-gray-900 truncate flex-1">
                                                             {card.title}
                                                         </p>
+                                                        {/* 分类标签 */}
                                                         {card.category && (
                                                             <span className="text-[10px] px-1.5 py-0.5 bg-white rounded text-gray-600 flex-shrink-0">
                                                                 {card.category}

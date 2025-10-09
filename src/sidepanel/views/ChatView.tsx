@@ -52,7 +52,7 @@ export const ChatView: React.FC = () => {
                 selectedCards={chat.selectedCards}
                 allCards={chat.allCards}
                 selectedCardIds={chat.selectedCardIds}
-                onToggleCard={chat.toggleCard}
+                onSelectionChange={chat.setCardsSelection}
                 onNewChat={chat.handleNewConversation}
                 isGenerating={chat.isGenerating}
                 isInitializing={chat.isInitializing}
@@ -66,7 +66,6 @@ export const ChatView: React.FC = () => {
                 messagesEndRef={chat.messagesEndRef}
                 messagesContainerRef={chat.messagesContainerRef}
                 onScroll={chat.handleScroll}
-                onReject={chat.handleReject}
                 onCopy={chat.handleCopy}
             />
 

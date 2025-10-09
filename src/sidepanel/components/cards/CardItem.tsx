@@ -25,7 +25,7 @@ export const CardItem: React.FC<CardItemProps> = ({
                                                       onExpand,
                                                       isOverlapping = false
                                                   }) => {
-    const { deleteCard, setEditingCard, setShowAddModal, showCardNumbers } = useStore();
+    const { deleteCard, setEditingCard, setShowAddModal } = useStore();
     const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
     const [copied, setCopied] = useState(false);
 
@@ -79,12 +79,10 @@ export const CardItem: React.FC<CardItemProps> = ({
             `}
             onClick={handleCardClick}
         >
-            {/* Card Number Badge - Middle of visible area when overlapped (title area) */}
-            {showCardNumbers && (
-                <div className="absolute -left-[12px] top-[25px] bg-gray-200/85 text-gray-600 px-1 py-0.5 text-[9px] font-mono font-medium shadow-sm z-10 rounded-r-sm border-r border-gray-300/30">
-                    {String(card.displayNumber).padStart(2, '0')}
-                </div>
-            )}
+            {/* Card Number Badge - 始终显示 */}
+            <div className="absolute -left-[12px] top-[25px] bg-gray-200/85 text-gray-600 px-1 py-0.5 text-[9px] font-mono font-medium shadow-sm z-10 rounded-r-sm border-r border-gray-300/30">
+                {String(card.displayNumber).padStart(2, '0')}
+            </div>
 
             <div className="pl-4 pr-2 pt-3 pb-1 h-full flex flex-col">
                 {/* Header */}

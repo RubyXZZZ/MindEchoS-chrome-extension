@@ -25,8 +25,7 @@ export const PROTECTED_CATEGORIES = [DEFAULT_CATEGORY];
 
 // --- Sample Card ---
 
-// Sample Card ID - 用于识别和过滤示例卡片
-// 该卡片仅在首次加载且无其他卡片时创建
+// Sample Card ID
 export const SAMPLE_CARD_ID = 'cd-sample-00';
 
 // --- Storage Keys ---
@@ -38,5 +37,4 @@ export const STORAGE_KEYS = {
     PREFERENCES: 'user_preferences',
     USER_CATEGORIES: 'userCategories',
     NEXT_DISPLAY_NUMBER: 'nextDisplayNumber',
-    SHOW_CARD_NUMBERS: 'showCardNumbers',
 } as const;

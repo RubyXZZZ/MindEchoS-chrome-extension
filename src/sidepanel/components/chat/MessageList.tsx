@@ -1,6 +1,6 @@
 // components/chat/MessageList.tsx
 import React from 'react';
-import { X, Copy, BookOpen, GitCompare, GraduationCap, PenTool } from 'lucide-react';
+import { Copy, BookOpen, GitCompare, GraduationCap, PenTool } from 'lucide-react';
 import { ChatMessage } from '../../types/chat.types';
 import { formatTime } from '../../utils/formatters';
 import { ChatMarkdownRenderer } from './ChatMarkdownRenderer';
@@ -9,11 +9,10 @@ import { KnowledgeCard } from '../../types/card.types';
 interface MessageBubbleProps {
     msg: ChatMessage;
     cards: KnowledgeCard[];
-    onReject: (id: string) => void;
     onCopy: (id: string) => void;
 }
 
-const MessageBubble: React.FC<MessageBubbleProps> = ({ msg, cards, onReject, onCopy }) => (
+const MessageBubble: React.FC<MessageBubbleProps> = ({ msg, cards, onCopy }) => (
     <div className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
         <div className={msg.role === 'user' ? 'max-w-[85%]' : 'max-w-[95%]'}>
             <div className={`px-4 py-2.5 text-sm overflow-hidden ${
@@ -26,7 +25,11 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({ msg, cards, onReject, onC
                 ) : (
                     <>
                         {msg.content ? (
-                            <ChatMarkdownRenderer content={msg.content} className="text-sm" cards={cards} />
+                            <ChatMarkdownRenderer
+                                content={msg.content}
+                                className="text-sm"
+                                cards={cards}
+                            />
                         ) : (
                             <div className="flex gap-1.5">
                                 <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
@@ -35,16 +38,9 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({ msg, cards, onReject, onC
                             </div>
                         )}
 
-                        {msg.content && msg.status !== 'rejected' && (
-                            <div className="flex gap-1.5 mt-2.5 pt-2.5 border-t border-gray-100">
-                                <button
-                                    onClick={() => onReject(msg.id)}
-                                    className="px-2 py-1 bg-red-50 text-red-700 text-xs rounded hover:bg-red-100 flex items-center gap-1"
-                                >
-                                    <X className="w-3 h-3" />
-                                    Improve
-                                </button>
-
+                        {/* Copy 按钮 - 移到右侧 */}
+                        {msg.content && (
+                            <div className="flex justify-end mt-2.5 pt-2.5 border-t border-gray-100">
                                 <button
                                     onClick={() => onCopy(msg.id)}
                                     className="px-2 py-1 bg-blue-50 text-blue-700 text-xs rounded hover:bg-blue-100 flex items-center gap-1"
@@ -52,12 +48,6 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({ msg, cards, onReject, onC
                                     <Copy className="w-3 h-3" />
                                     Copy
                                 </button>
-                            </div>
-                        )}
-
-                        {msg.status === 'rejected' && msg.rejectionReason && (
-                            <div className="mt-2 text-xs text-amber-700 bg-amber-50 px-2 py-1 rounded">
-                                Improving: {msg.rejectionReason}
                             </div>
                         )}
                     </>
@@ -81,7 +71,6 @@ interface MessageListProps {
     messagesEndRef: React.RefObject<HTMLDivElement | null>;
     messagesContainerRef: React.RefObject<HTMLDivElement | null>;
     onScroll: (e: React.UIEvent<HTMLDivElement>) => void;
-    onReject: (msgId: string) => void;
     onCopy: (msgId: string) => void;
 }
 
@@ -92,7 +81,6 @@ export const MessageList: React.FC<MessageListProps> = ({
                                                             messagesEndRef,
                                                             messagesContainerRef,
                                                             onScroll,
-                                                            onReject,
                                                             onCopy
                                                         }) => {
     return (
@@ -199,7 +187,6 @@ export const MessageList: React.FC<MessageListProps> = ({
                         key={msg.id}
                         msg={msg}
                         cards={selectedCards}
-                        onReject={onReject}
                         onCopy={onCopy}
                     />
                 ))}
