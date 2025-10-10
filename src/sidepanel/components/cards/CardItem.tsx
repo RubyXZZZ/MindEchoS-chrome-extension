@@ -5,6 +5,8 @@ import { useStore } from '../../store';
 import { formatCardDate } from '../../utils/formatters';
 import { MarkdownRenderer } from '../cards/MarkdownRenderer';
 import { ConfirmDialog } from '../modals/ConfirmDialog';
+import { EgCardRenderer } from '../cards/EgCardRenderer';  // ← 新增
+import { SAMPLE_CARD_ID } from '../../utils/constants';
 
 interface CardItemProps {
     card: KnowledgeCard;
@@ -80,7 +82,7 @@ export const CardItem: React.FC<CardItemProps> = ({
             onClick={handleCardClick}
         >
             {/* Card Number Badge - 始终显示 */}
-            <div className="absolute -left-[12px] top-[25px] bg-gray-200/85 text-gray-600 px-1 py-0.5 text-[9px] font-mono font-medium shadow-sm z-10 rounded-r-sm border-r border-gray-300/30">
+            <div className="absolute -left-[12px] top-[25px] bg-gray-200/80 text-gray-600 px-1 py-0.5 text-[9px] font-medium shadow-sm z-10 rounded-r-sm border-r border-gray-300/30">
                 {String(card.displayNumber).padStart(2, '0')}
             </div>
 
@@ -102,7 +104,7 @@ export const CardItem: React.FC<CardItemProps> = ({
                                 />
                             </label>
                         )}
-                        <h3 className="text-base text-gray-900 flex-1 leading-tight">
+                        <h3 className="text-base text-gray-900 flex-1 leading-tight font-semibold">
                             {card.title}
                         </h3>
                     </div>
@@ -117,10 +119,17 @@ export const CardItem: React.FC<CardItemProps> = ({
                         className="flex-1 min-h-0 pt-2 border-t border-gray-200/50 overflow-y-auto pb-3 mb-2 custom-scrollbar -mr-1"
                         style={{ scrollbarGutter: 'stable' }}
                     >
-                        <MarkdownRenderer
-                            content={card.content}
-                            className="text-sm leading-snug"
-                        />
+                        {card.id === SAMPLE_CARD_ID ? (
+                            <EgCardRenderer
+                                content={card.content}
+                                className="text-sm leading-snug"
+                            />
+                        ) : (
+                            <MarkdownRenderer
+                                content={card.content}
+                                className="text-sm leading-snug"
+                            />
+                        )}
                     </div>
                 ) : (
                     <p className="text-xs text-gray-700 line-clamp-3 leading-tight pr-2 mb-3">

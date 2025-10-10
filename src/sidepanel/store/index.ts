@@ -6,7 +6,6 @@ import {
     DEFAULT_CATEGORY,
     PROTECTED_CATEGORIES,
     STORAGE_KEYS,
-    CARD_COLORS,
     SAMPLE_CARD_ID
 } from '../utils/constants';
 import { generateArchiveId } from '../utils/idGenerator';
@@ -173,13 +172,40 @@ export const useStore = create<AppState>((set, get) => ({
                 const sampleCard: KnowledgeCard = {
                     id: SAMPLE_CARD_ID,
                     displayNumber: 0,
-                    title: '欢迎使用知识卡片!',
-                    content: '这是一个示例卡片。你可以使用右键菜单或快捷键从任何网页上捕获选中的文本来创建新卡片。',
+                    title: 'Quick Start Guide',
+                    content: `## 📝 Create Cards with AI-Summarize
+1. **From selected text**:   
+    • Click ➕ → **SELECTION**
+    • **RIGHT-CLICK** or **SHORTCUT** when panel is closed
+💡 Win:\`Ctl+Shift+S\` Mac: \`Cmd+Shift+S\` (⚙️ Settings)
+2. **From Webpage Article**: Click ➕→ **WEBPAGE**
+
+---
+
+## 🗂️ Organize Cards:
+1. 🔍 Search (toggle AI SWITCH for semantic matching)
+2. Manage mode: batch select, delete, export, move categories
+
+---
+
+## 🤖 AI Interaction:
+1. Click 🤖 or use MANAGE to select cards for AI context
+2. AI reads selected cards and answers questions
+3. Quick actions: Understand, Compare, Quiz, Write (Summary, Outline, Draft)
+
+---
+
+## 📌 Tips:
+• Short text (under 180 chars): saves directly without AI
+• First AI use: wait 2-5 sec for initialization
+• Reset card number in ⚙️ Settings if needed
+• Archive conversations via Manage mode (AI view)
+• Privacy: Chrome's built-in Gemini Nano runs locally`,
                     url: '',
                     timestamp: Date.now(),
                     tags: [],
                     category: DEFAULT_CATEGORY,
-                    color: CARD_COLORS[0],
+                    color: 'bg-yellow-100',
                 };
 
                 await chrome.storage.local.set({ [STORAGE_KEYS.CARDS]: [sampleCard] });
