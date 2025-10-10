@@ -60,18 +60,18 @@ export const QuickActions: React.FC<QuickActionsProps> = ({
                         <span className="text-base">📄</span>
                         <div>
                             <div className="text-sm font-medium text-gray-900">Report Draft</div>
-                            <div className="text-xs text-gray-500">Initial version</div>
+                            <div className="text-xs text-gray-500">Simple draft</div>
                         </div>
                     </button>
                 </div>
             )}
 
             {/* Action Buttons */}
-            <div className="flex gap-2 justify-center">
+            <div className="flex gap-1.5 justify-center">
                 <button
                     onClick={() => onQuickAction('understand')}
                     disabled={isDisabled}
-                    className={`px-2.5 py-1.5 rounded-lg shadow-lg border transition-all disabled:opacity-60 flex items-center gap-1.5 group ${
+                    className={`px-2 py-1.5 rounded-lg shadow-lg border transition-all disabled:opacity-60 flex items-center gap-1.5 group ${
                         activeButton === 'understand'
                             ? 'bg-emerald-500 text-white border-emerald-600 shadow-xl'
                             : 'bg-white hover:bg-emerald-500 hover:text-white border-gray-200 hover:border-emerald-600'
@@ -80,13 +80,13 @@ export const QuickActions: React.FC<QuickActionsProps> = ({
                     <BookOpen className={`w-3.5 h-3.5 ${
                         activeButton === 'understand' ? 'text-white' : 'text-blue-500 group-hover:text-white'
                     }`} />
-                    <span className="text-xs font-medium">Understand</span>
+                    <span className="text-sm">Understand</span>
                 </button>
 
                 <button
                     onClick={() => onQuickAction('compare')}
                     disabled={isDisabled}
-                    className={`px-2.5 py-1.5 rounded-lg shadow-lg border transition-all disabled:opacity-60 flex items-center gap-1.5 group ${
+                    className={`px-2 py-1.5 rounded-lg shadow-lg border transition-all disabled:opacity-60 flex items-center gap-1.5 group ${
                         activeButton === 'compare'
                             ? 'bg-emerald-500 text-white border-emerald-600 shadow-xl'
                             : 'bg-white hover:bg-emerald-500 hover:text-white border-gray-200 hover:border-emerald-600'
@@ -95,13 +95,13 @@ export const QuickActions: React.FC<QuickActionsProps> = ({
                     <GitCompare className={`w-3.5 h-3.5 ${
                         activeButton === 'compare' ? 'text-white' : 'text-purple-500 group-hover:text-white'
                     }`} />
-                    <span className="text-xs font-medium">Compare</span>
+                    <span className="text-sm">Compare</span>
                 </button>
 
                 <button
                     onClick={() => onQuickAction('quiz')}
                     disabled={isDisabled}
-                    className={`px-2.5 py-1.5 rounded-lg shadow-lg border transition-all disabled:opacity-60 flex items-center gap-1.5 group ${
+                    className={`px-2 py-1.5 rounded-lg shadow-lg border transition-all disabled:opacity-60 flex items-center gap-1.5 group ${
                         activeButton === 'quiz'
                             ? 'bg-emerald-500 text-white border-emerald-600 shadow-xl'
                             : 'bg-white hover:bg-emerald-500 hover:text-white border-gray-200 hover:border-emerald-600'
@@ -110,13 +110,13 @@ export const QuickActions: React.FC<QuickActionsProps> = ({
                     <GraduationCap className={`w-3.5 h-3.5 ${
                         activeButton === 'quiz' ? 'text-white' : 'text-amber-500 group-hover:text-white'
                     }`} />
-                    <span className="text-xs font-medium">Quiz</span>
+                    <span className="text-sm ">Quiz</span>
                 </button>
 
                 <button
                     onClick={() => onQuickAction('write')}
                     disabled={isDisabled}
-                    className={`px-2.5 py-1.5 rounded-lg shadow-lg border transition-all disabled:opacity-60 flex items-center gap-1.5 group ${
+                    className={`px-2 py-1.5 rounded-lg shadow-lg border transition-all disabled:opacity-60 flex items-center gap-1.5 group ${
                         activeButton === 'write' || showWriteMenu
                             ? 'bg-emerald-500 text-white border-emerald-600 shadow-xl'
                             : 'bg-white hover:bg-emerald-500 hover:text-white border-gray-200 hover:border-emerald-600'
@@ -125,7 +125,7 @@ export const QuickActions: React.FC<QuickActionsProps> = ({
                     <PenTool className={`w-3.5 h-3.5 ${
                         activeButton === 'write' || showWriteMenu ? 'text-white' : 'text-green-500 group-hover:text-white'
                     }`} />
-                    <span className="text-xs font-medium">Write</span>
+                    <span className="text-sm">Write</span>
                 </button>
             </div>
         </div>

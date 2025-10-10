@@ -43,10 +43,10 @@ export const ChatInput: React.FC<ChatInputProps> = ({
                                 onSend();
                             }
                         }}
-                        placeholder="Message AI..."
+                        placeholder="Type your question here..."
                         disabled={isGenerating || isInitializing || !sessionReady}
                         className="w-full px-3 py-2.5 pr-12 bg-gray-50 border border-gray-300 rounded-xl text-sm resize-none focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:bg-white transition-all"
-                        rows={3}
+                        rows={2}
                     />
 
                     {isGenerating ? (

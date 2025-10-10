@@ -358,8 +358,8 @@ export const ChatMarkdownRenderer: React.FC<ChatMarkdownRendererProps> = ({
                                 onClick={(e) => handleCardClick(card, e)}
                                 className={`card-badge px-2 py-0.5 rounded text-[11px] font-medium border transition-all cursor-help ${
                                     isActive
-                                        ? 'bg-emerald-500 text-white border-emerald-600'
-                                        : 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100 hover:border-emerald-300'
+                                        ? 'bg-gray-700 text-white border-gray-800'
+                                        : 'bg-gray-100 text-gray-700 border-gray-300 hover:bg-gray-200 hover:border-gray-400'
                                 }`}
                             >
                                 Card {card.displayNumber}

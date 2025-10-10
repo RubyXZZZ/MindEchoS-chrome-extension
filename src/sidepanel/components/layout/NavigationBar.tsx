@@ -129,10 +129,10 @@ export const NavigationBar: React.FC<NavigationBarProps> = ({
                     <div className="flex-1" />
 
                     {/* View Switcher - Compact */}
-                    <div className="relative bg-gray-200 rounded-lg p-0.5 flex flex-shrink-0">
+                    <div className="relative bg-gray-200 rounded-lg p-[2px] flex flex-shrink-0">
                         {/* Sliding Green Background */}
                         <div
-                            className="absolute top-0.5 bottom-0.5 left-0.5 w-[68px] bg-emerald-500 rounded-md shadow-md transition-transform duration-300 ease-out"
+                            className="absolute top-[2px] bottom-[2px] left-[2px] w-[68px] bg-emerald-500 rounded-md shadow-md transition-transform duration-300 ease-out"
                             style={{
                                 transform: displayView === 'cards' ? 'translateX(0)' : 'translateX(68px)',
                                 willChange: 'transform'
@@ -142,7 +142,7 @@ export const NavigationBar: React.FC<NavigationBarProps> = ({
                         {/* Buttons */}
                         <button
                             onClick={() => handleViewChange('cards')}
-                            className={`relative z-10 w-[68px] py-1.5 rounded-md text-sm font-medium transition-colors duration-300 ${
+                            className={`relative z-10 w-[68px] py-1 rounded-md text-sm font-medium transition-colors duration-300 ${
                                 displayView === 'cards'
                                     ? 'text-white'
                                     : 'text-gray-700 hover:text-gray-900'
