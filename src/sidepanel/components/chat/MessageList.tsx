@@ -112,15 +112,15 @@ export const MessageList: React.FC<MessageListProps> = ({
                 <div className="max-w-2xl mx-auto mt-8 mb-8">
                     <div className="bg-gradient-to-br from-emerald-50 to-teal-50 rounded-2xl p-6 border border-emerald-200">
                         <h3 className="text-lg font-semibold text-gray-800 mb-3">
-                            Welcome! How can I help you today?
+                            💡 AI Quick Guide
                         </h3>
                         <p className="text-sm text-gray-600 mb-4">
-                            I'm here to assist with your knowledge cards and answer questions. Use the quick actions below or type your own question.
+                            Use the quick action buttons below or type your own question.
                         </p>
 
                         <div className="bg-amber-50/70 rounded-lg p-3 mb-4 border border-amber-200">
                             <p className="text-xs text-gray-700">
-                                <span className="font-medium">Tip:</span> Select cards above for context-aware responses.
+                                <span className="font-medium">Tip:</span> Select cards ABOVE ↑ or in the CARDS View for context-aware responses.
                                 {selectedCards.length === 0 ? (
                                     <span className="text-emerald-600"> No cards selected yet.</span>
                                 ) : (
@@ -174,7 +174,7 @@ export const MessageList: React.FC<MessageListProps> = ({
 
                         <div className="mt-4 pt-4 border-t border-emerald-200/50">
                             <p className="text-xs text-gray-600">
-                                <span className="font-medium">Ask anything</span> - Type your question below
+                                <span className="font-medium">Manage Chat</span> - Archive and view history.
                             </p>
                         </div>
                     </div>
