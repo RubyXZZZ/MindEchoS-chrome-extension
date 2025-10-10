@@ -1,5 +1,5 @@
 // services/ai/searchAI.ts
-// AI-powered semantic card search - OPTIMIZED VERSION
+// Single-stage generous semantic search
 
 import type { CardForSearch } from '../../types/ai.types';
 import type { PromptSession } from '../../types/ai.types';
@@ -18,18 +18,12 @@ class SearchAI {
         return SearchAI.instance;
     }
 
-    /**
-     * 确保 session 已创建（复用）
-     */
     private async ensureSession(): Promise<PromptSession> {
-        // 如果已有 session，直接返回
         if (this.session) {
             return this.session;
         }
 
-        // 防止并发初始化
         if (this.isInitializing) {
-            // 等待初始化完成
             await new Promise(resolve => setTimeout(resolve, 100));
             return this.ensureSession();
         }
@@ -37,7 +31,6 @@ class SearchAI {
         this.isInitializing = true;
 
         try {
-            // 检查 API 可用性
             if (!('LanguageModel' in self)) {
                 throw new Error('LanguageModel not available');
             }
@@ -47,10 +40,10 @@ class SearchAI {
                 throw new Error('LanguageModel not available');
             }
 
-            // 创建轻量级 session（专用于搜索）
+            // Slightly higher temperature for more generous matching
             this.session = await LanguageModel.create({
-                temperature: 0.2,
-                topK: 5
+                temperature: 0.4,
+                topK: 20
             });
 
             return this.session;
@@ -63,7 +56,7 @@ class SearchAI {
     }
 
     /**
-     * 搜索卡片（复用 session）
+     * Single-stage generous semantic search
      */
     async search(cards: CardForSearch[], query: string): Promise<string[]> {
         const trimmedQuery = query.trim();
@@ -72,53 +65,46 @@ class SearchAI {
         }
 
         try {
-            // 确保 session 存在（复用）
             const session = await this.ensureSession();
 
-            // 构建卡片列表
+            // Build card list with title + content preview (150 chars)
             const cardList = cards
-                .map(c => `${c.displayNumber}. ${c.title}: ${c.content.substring(0, 80)}`)
-                .join('\n');
+                .map(c => `${c.displayNumber}. ${c.title}\n   ${c.content.substring(0, 150)}`)
+                .join('\n\n');
 
-            // 构建搜索提示
-            const prompt = `You are a semantic search assistant. Find the most relevant knowledge cards for the user's query.
+            const prompt = `You are an intelligent semantic search engine. Find ALL cards related to: "${trimmedQuery}"
 
 CARDS:
 ${cardList}
 
-USER QUERY: "${trimmedQuery}"
+Match cards that contain or relate to the query through:
+- Direct keywords (exact or partial matches)
+- Synonyms
+- Related concepts 
+- Similar problems or use cases 
+- Contextual meaning, even if wording differs
 
-MATCHING CRITERIA:
-- Match direct keywords
-- Match synonyms or related terms
-- Match conceptually similar topics
-- Match use cases or problems solved
-- Match across languages if applicable
+Be VERY generous - include ANY card that could be relevant.
+Better to include too many than miss important cards.
 
-Be thorough in finding semantic matches, but rank by true relevance.
+Return ALL matching card numbers, most relevant first.
+Format: "1, 2, 5, 8"
+If truly no matches: "none"
 
-OUTPUT:
-- Return ONLY the card numbers, comma-separated, most relevant first
-- Format: "2, 5, 8" (numbers only, no extra text)
-- If no matches: "none"
+Result:`;
 
-RESULT:`;
+            const result = await Promise.race([
+                session.prompt(prompt),
+                new Promise<string>((_, reject) =>
+                    setTimeout(() => reject(new Error('Search timeout')), 8000)
+                )
+            ]);
 
-            // 执行搜索（带超时）
-            const searchPromise = session.prompt(prompt);
-            const timeoutPromise = new Promise<string>((_, reject) =>
-                setTimeout(() => reject(new Error('Search timeout')), 8000)
-            );
-
-            const result = await Promise.race([searchPromise, timeoutPromise]);
-
-            // 解析结果
             return this.parseSearchResult(result, cards);
 
         } catch (error) {
             console.error('[SearchAI] Search failed:', error);
 
-            // 如果出错，销毁 session 以便下次重建
             if (this.session) {
                 this.session.destroy();
                 this.session = null;
@@ -128,9 +114,6 @@ RESULT:`;
         }
     }
 
-    /**
-     * 解析搜索结果
-     */
     private parseSearchResult(result: string, cards: CardForSearch[]): string[] {
         const resultLower = result.toLowerCase().trim();
 
@@ -138,7 +121,6 @@ RESULT:`;
             return [];
         }
 
-        // 提取数字
         const numbers = result
             .split(',')
             .map((n: string) => parseInt(n.trim()))
@@ -148,7 +130,6 @@ RESULT:`;
             return [];
         }
 
-        // 转换为卡片 ID
         const matchedIds: string[] = [];
         numbers.forEach((num: number) => {
             const card = cards.find(c => c.displayNumber === num);
@@ -160,9 +141,6 @@ RESULT:`;
         return matchedIds;
     }
 
-    /**
-     * 手动销毁 session（通常不需要调用）
-     */
     destroy() {
         if (this.session) {
             this.session.destroy();
@@ -171,7 +149,7 @@ RESULT:`;
     }
 }
 
-// 导出便捷函数
+// Export convenience function
 export const aiSearchCards = async (
     cards: CardForSearch[],
     query: string
@@ -180,7 +158,7 @@ export const aiSearchCards = async (
     return searchAI.search(cards, query);
 };
 
-// 导出销毁函数（如果需要）
+// Export destroy function if needed
 export const destroySearchSession = () => {
     const searchAI = SearchAI.getInstance();
     searchAI.destroy();

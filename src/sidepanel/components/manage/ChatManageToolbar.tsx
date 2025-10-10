@@ -23,10 +23,8 @@ export const ChatManageToolbar: React.FC<ChatManageToolbarProps> = ({
     const handleArchive = async () => {
         if (!hasMessages) return;
 
-        if (window.confirm('Archive this conversation? You can view it later in Settings.')) {
-            await archiveCurrentChat();
-            onActionComplete();
-        }
+        await archiveCurrentChat();
+        onActionComplete();
     };
 
 

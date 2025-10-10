@@ -52,7 +52,7 @@ export const CardsView: React.FC<CardsViewProps> = ({
     const [showNewCategoryInput, setShowNewCategoryInput] = useState(false);
     const [newCategoryValue, setNewCategoryValue] = useState('');
 
-    // AI selection mode
+    // AI selection mode (for selecting cards to chat)
     const [aiSelectionMode, setAiSelectionMode] = useState(false);
     const [aiSelectedCards, setAiSelectedCards] = useState<string[]>([]);
     const [showNewChatDialog, setShowNewChatDialog] = useState(false);
@@ -64,21 +64,21 @@ export const CardsView: React.FC<CardsViewProps> = ({
 
     const filteredCards = useMemo(() => {
         return cards.filter(card => {
-            // Filter out sample card in AI selection mode
+            // Exclude sample card in AI selection mode
             if (aiSelectionMode && card.id === SAMPLE_CARD_ID) {
                 return false;
             }
 
             const cardCategory = card.category || DEFAULT_CATEGORY;
 
-            // AI Search Mode
+            // AI Search Mode: filter by AI-matched results
             if (aiSearchMode && aiMatchedCardIds.length > 0) {
                 const matchesAI = aiMatchedCardIds.includes(card.id);
                 const matchesCategory = selectedCategory === ALL_CARDS_FILTER || cardCategory === selectedCategory;
                 return matchesAI && matchesCategory;
             }
 
-            // Normal Search Mode
+            // Normal Search Mode: keyword matching
             const matchesSearch = !searchQuery ||
                 card.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
                 card.content.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -88,7 +88,7 @@ export const CardsView: React.FC<CardsViewProps> = ({
 
             return matchesSearch && matchesCategory;
         }).sort((a, b) => {
-            // AI 搜索模式：按相关度排序
+            // AI search: sort by relevance order
             if (aiSearchMode && aiMatchedCardIds.length > 0) {
                 const indexA = aiMatchedCardIds.indexOf(a.id);
                 const indexB = aiMatchedCardIds.indexOf(b.id);
@@ -96,7 +96,7 @@ export const CardsView: React.FC<CardsViewProps> = ({
                     return indexA - indexB;
                 }
             }
-            // 默认：按时间排序
+            // Default: sort by timestamp
             return a.timestamp - b.timestamp;
         });
     }, [cards, searchQuery, selectedCategory, aiSelectionMode, aiSearchMode, aiMatchedCardIds]);
@@ -140,7 +140,7 @@ export const CardsView: React.FC<CardsViewProps> = ({
         setNewCategoryValue('');
     };
 
-    // AI Robot Button Handlers
+    // AI Robot mode handlers
     const handleAiRobotClick = () => {
         setAiSelectionMode(true);
         setAiSelectedCards([]);
@@ -162,13 +162,12 @@ export const CardsView: React.FC<CardsViewProps> = ({
         setAiSelectedCards([]);
     };
 
-    // Manage Mode Select All Handlers
+    // Manage mode handlers
     const handleManageSelectAll = () => {
         const allValidCardIds = filteredCards
             .filter(card => card.id !== SAMPLE_CARD_ID)
             .map(card => card.id);
 
-        // Call onCardSelect for each card to toggle them all on
         allValidCardIds.forEach(id => {
             if (!manageModeState?.selectedCards.includes(id)) {
                 onCardSelect?.(id);
@@ -177,13 +176,11 @@ export const CardsView: React.FC<CardsViewProps> = ({
     };
 
     const handleManageDeselectAll = () => {
-        // Call onCardSelect for each selected card to toggle them all off
         manageModeState?.selectedCards.forEach(id => {
             onCardSelect?.(id);
         });
     };
 
-    // Check if all cards are selected in Manage Mode
     const allCardsSelected = useMemo(() => {
         if (!manageModeState?.isManageMode) return false;
         const selectableCards = filteredCards.filter(card => card.id !== SAMPLE_CARD_ID);
@@ -191,7 +188,7 @@ export const CardsView: React.FC<CardsViewProps> = ({
             selectableCards.every(card => manageModeState.selectedCards.includes(card.id));
     }, [manageModeState, filteredCards]);
 
-    // AI Search Handlers
+    // AI Search handlers
     const handleToggleAiSearch = () => {
         if (aiSearchMode) {
             setAiSearchMode(false);
@@ -200,6 +197,11 @@ export const CardsView: React.FC<CardsViewProps> = ({
             setAiSearchMode(true);
             setAiMatchedCardIds([]);
         }
+    };
+
+    const handleClearSearch = () => {
+        setSearchQuery('');
+        setAiMatchedCardIds([]);
     };
 
     const handleAiSearch = async () => {
@@ -220,12 +222,6 @@ export const CardsView: React.FC<CardsViewProps> = ({
                     title: c.title,
                     content: c.content
                 }));
-
-            if (typeof aiSearchCards !== 'function') {
-                console.error('[CardsView] aiSearchCards is not a function');
-                setAiMatchedCardIds([]);
-                return;
-            }
 
             const matchedIds = await aiSearchCards(searchableCards, trimmedQuery);
             setAiMatchedCardIds(matchedIds);
@@ -300,6 +296,7 @@ export const CardsView: React.FC<CardsViewProps> = ({
         setAiSelectedCards([]);
     };
 
+    // Calculate card positions for overlapping layout
     const { cardPositions, containerHeight } = useMemo(() => {
         if (filteredCards.length === 0) {
             return { cardPositions: {}, containerHeight: 400 };
@@ -326,7 +323,9 @@ export const CardsView: React.FC<CardsViewProps> = ({
 
     return (
         <div className="flex-1 flex flex-col h-full">
+            {/* Search & Filter Bar */}
             <div className="flex-shrink-0 px-4 py-2 bg-white/80 backdrop-blur-sm border-b border-gray-100 z-10">
+                {/* Search Input */}
                 <div className="relative mb-2">
                     <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
                     <input
@@ -336,20 +335,34 @@ export const CardsView: React.FC<CardsViewProps> = ({
                         onChange={(e) => setSearchQuery(e.target.value)}
                         onKeyDown={handleSearchKeyDown}
                         disabled={isAiSearching}
-                        className={`w-full pl-9 pr-20 py-1.5 border rounded-lg text-sm focus:outline-none focus:ring-2 transition-all ${
+                        className={`w-full pl-9 pr-24 py-1.5 border rounded-lg text-sm focus:outline-none focus:ring-2 transition-all ${
                             aiSearchMode
                                 ? 'bg-gradient-to-r from-purple-50 to-blue-50 border-purple-300 focus:ring-purple-500/30'
                                 : 'bg-gray-50 border-gray-200 focus:ring-emerald-500/30'
                         } disabled:opacity-60`}
                     />
 
+                    {/* Right side controls */}
                     <div className="absolute right-2 top-1/2 transform -translate-y-1/2 flex items-center gap-1.5">
+                        {/* Clear button - shows when search query exists */}
+                        {searchQuery && (
+                            <button
+                                onClick={handleClearSearch}
+                                className="p-1 hover:bg-gray-200 rounded-full transition-colors"
+                                title="Clear search"
+                            >
+                                <X className="w-3.5 h-3.5 text-gray-500" />
+                            </button>
+                        )}
+
+                        {/* Match count (AI mode with results) */}
                         {aiSearchMode && aiMatchedCardIds.length > 0 && !isAiSearching && (
                             <div className="text-[10px] text-purple-600 font-medium bg-purple-100 px-1.5 py-0.5 rounded">
                                 {aiMatchedCardIds.length}
                             </div>
                         )}
 
+                        {/* AI Toggle Switch */}
                         <button
                             onClick={handleToggleAiSearch}
                             disabled={isAiSearching}
@@ -377,6 +390,8 @@ export const CardsView: React.FC<CardsViewProps> = ({
                         </button>
                     </div>
                 </div>
+
+                {/* Category Filter Tags */}
                 <div className="flex gap-1.5 flex-wrap items-center">
                     {filterOptions.map(filter => (
                         <div key={filter} className="relative group">
@@ -393,6 +408,7 @@ export const CardsView: React.FC<CardsViewProps> = ({
                                     ({categoryCounts[filter] || 0})
                                 </span>
                             </button>
+                            {/* Delete category button (Manage mode only) */}
                             {manageModeState?.isManageMode && !PROTECTED_CATEGORIES.includes(filter) && filter !== ALL_CARDS_FILTER && (
                                 <button
                                     onClick={(e) => {
@@ -407,6 +423,7 @@ export const CardsView: React.FC<CardsViewProps> = ({
                             )}
                         </div>
                     ))}
+                    {/* Add new category input (Normal mode only) */}
                     {!manageModeState?.isManageMode && (
                         showNewCategoryInput ? (
                             <div className="flex items-center gap-1">
@@ -452,6 +469,7 @@ export const CardsView: React.FC<CardsViewProps> = ({
                 </div>
             </div>
 
+            {/* Cards Container */}
             <div className="flex-1 overflow-y-auto overflow-x-hidden bg-gradient-to-b from-transparent to-white/30 relative">
                 {filteredCards.length > 0 ? (
                     <div className="relative px-2 pt-1 pb-4" style={{ minHeight: `${containerHeight}px` }}>
@@ -503,7 +521,7 @@ export const CardsView: React.FC<CardsViewProps> = ({
                     </button>
                 )}
 
-                {/* AI Selection Mode: Confirm/Cancel Buttons */}
+                {/* AI Selection Mode Buttons */}
                 {aiSelectionMode && (
                     <div className="fixed bottom-2 left-2 right-2 flex gap-2 z-20">
                         <div className="flex gap-2">
@@ -532,7 +550,7 @@ export const CardsView: React.FC<CardsViewProps> = ({
                     </div>
                 )}
 
-                {/* Right Bottom Button: Add Card OR Select All (Manage Mode) */}
+                {/* Right Bottom: Add Card or Select All (Manage) */}
                 {!aiSelectionMode && (
                     manageModeState?.isManageMode ? (
                         <button
@@ -563,7 +581,7 @@ export const CardsView: React.FC<CardsViewProps> = ({
                     )
                 )}
 
-                {/* Selected Cards Count (Left Bottom) - Only in Manage Mode */}
+                {/* Selected Cards Count (Manage mode) */}
                 {manageModeState?.isManageMode && manageModeState.selectedCards.length > 0 && (
                     <div className="fixed bottom-2 left-2 px-4 py-2 bg-gray-800 text-white text-sm rounded-lg shadow-lg z-20">
                         Selected {manageModeState.selectedCards.length} card{manageModeState.selectedCards.length > 1 ? 's' : ''}
@@ -571,7 +589,7 @@ export const CardsView: React.FC<CardsViewProps> = ({
                 )}
             </div>
 
-            {/* New Chat Dialog - Simplified */}
+            {/* New Chat Dialog */}
             {showNewChatDialog && createPortal(
                 <ConfirmDialog
                     isOpen={showNewChatDialog}

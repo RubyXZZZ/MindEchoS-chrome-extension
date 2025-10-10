@@ -227,13 +227,13 @@ export const CategorySelector: React.FC<CategorySelectorProps> = ({
                                     onClick={handleConfirm}
                                     className="flex-1 px-4 py-2 bg-emerald-500 text-white text-sm font-medium rounded-lg hover:bg-emerald-600 shadow-sm"
                                 >
-                                    确认选择
+                                    Confirm
                                 </button>
                                 <button
                                     onClick={handleCancel}
                                     className="flex-1 px-4 py-2 bg-white text-gray-700 text-sm font-medium rounded-lg hover:bg-gray-100 border border-gray-200"
                                 >
-                                    取消
+                                    Cancel
                                 </button>
                             </div>
                         </>
