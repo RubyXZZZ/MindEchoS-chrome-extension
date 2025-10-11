@@ -1,4 +1,4 @@
-// services/ai/searchAI.ts
+
 // Single-stage generous semantic search
 
 import type { CardForSearch } from '../../types/ai.types';

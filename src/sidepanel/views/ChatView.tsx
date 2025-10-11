@@ -1,4 +1,3 @@
-// views/ChatView.tsx
 import React from 'react';
 import { useChat } from '../hooks/useChat';
 import { ChatTopBar } from '../components/layout/ChatTopBar';
@@ -101,7 +100,7 @@ export const ChatView: React.FC = () => {
                             You have an ongoing conversation. Choose how to proceed:
                         </p>
 
-                        {/* Delete 说明卡（灰色） */}
+                        {/* Delete description */}
                         <div className="flex items-start gap-2 p-2.5 bg-gray-50 rounded-lg border border-gray-200">
                             <span className="text-base flex-shrink-0">🗑️</span>
                             <div className="text-xs text-gray-700">
@@ -110,7 +109,7 @@ export const ChatView: React.FC = () => {
                             </div>
                         </div>
 
-                        {/* Archive 说明卡（蓝色） */}
+                        {/* Archive description */}
                         <div className="flex items-start gap-2 p-2.5 bg-blue-50 rounded-lg border border-blue-200">
                             <span className="text-base flex-shrink-0">🗂️</span>
                             <div className="text-xs text-gray-700">

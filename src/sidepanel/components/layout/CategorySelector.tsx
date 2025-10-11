@@ -1,5 +1,4 @@
-// components/shared/CategorySelector.tsx
-// 通用的分类选择组件，用于 AddCardModal 和 Manage 模式
+// used for add-card-modal and manage-mode
 
 import React, { useState, useRef, useEffect } from 'react';
 import { ChevronDown, Plus, Check } from 'lucide-react';
@@ -33,17 +32,17 @@ export const CategorySelector: React.FC<CategorySelectorProps> = ({
     const dropdownRef = useRef<HTMLDivElement>(null);
     const inputRef = useRef<HTMLInputElement>(null);
 
-    // 所有可用的分类 - Other始终在最后
+    // Other shown last one
     const allCategories = [...userCategories, DEFAULT_CATEGORY];
 
-    // 管理模式下初始化临时选择
+
     useEffect(() => {
         if (manageMode) {
             setTempSelectedCategory(value);
         }
     }, [value, manageMode]);
 
-    // 点击外部关闭下拉菜单（仅非管理模式）
+
     useEffect(() => {
         if (!manageMode) {
             const handleClickOutside = (event: MouseEvent) => {
@@ -64,7 +63,7 @@ export const CategorySelector: React.FC<CategorySelectorProps> = ({
         }
     }, [isOpen, manageMode]);
 
-    // 自动聚焦输入框
+    // focus input
     useEffect(() => {
         if (showNewCategoryInput && inputRef.current) {
             inputRef.current.focus();
@@ -127,7 +126,7 @@ export const CategorySelector: React.FC<CategorySelectorProps> = ({
 
     return (
         <div className={`relative ${className}`} ref={dropdownRef}>
-            {/* 触发按钮 - 仅在非管理模式下显示 */}
+
             {!manageMode && (
                 <button
                     type="button"
@@ -139,15 +138,15 @@ export const CategorySelector: React.FC<CategorySelectorProps> = ({
                 </button>
             )}
 
-            {/* 下拉/上拉菜单 */}
+
             {shouldShowList && (
                 <div
                     className={`${manageMode ? '' : 'absolute'} z-[99999] w-full bg-gray-100 border border-gray-400 rounded-xl shadow-xl overflow-hidden ${!manageMode ? dropdownPositionClasses : ''}`}
                     style={{ zIndex: 99999 }}
                 >
-                    {/* 分类列表 */}
+                    {/* tag list */}
                     <div className="max-h-60 overflow-y-auto">
-                        {/* 现有分类 */}
+                        {/* current tag */}
                         {allCategories.map((category) => (
                             <button
                                 key={category}
@@ -163,10 +162,10 @@ export const CategorySelector: React.FC<CategorySelectorProps> = ({
                         ))}
                     </div>
 
-                    {/* 分隔线 */}
+
                     <div className="border-t border-gray-300"></div>
 
-                    {/* 添加新标签按钮 - 使用灰色样式 */}
+                    {/* add new*/}
                     {!showNewCategoryInput ? (
                         <button
                             type="button"
@@ -218,7 +217,7 @@ export const CategorySelector: React.FC<CategorySelectorProps> = ({
                         </div>
                     )}
 
-                    {/* 管理模式下的确认/取消按钮 */}
+                    {/* confirm/cancel button */}
                     {manageMode && (
                         <>
                             <div className="border-t border-gray-200"></div>

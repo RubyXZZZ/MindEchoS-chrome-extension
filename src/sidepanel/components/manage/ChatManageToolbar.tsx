@@ -1,4 +1,4 @@
-// components/manage/ChatManageToolbar.tsx
+// chat view - manage mode
 import React from 'react';
 import { History, Folder } from 'lucide-react';
 import { useStore } from '../../store';
@@ -38,7 +38,7 @@ export const ChatManageToolbar: React.FC<ChatManageToolbarProps> = ({
 
     return (
         <div className="mt-2 pt-2 border-t border-gray-200">
-            {/* Toolbar - 横向布局，拉长按钮 - 紧凑版 */}
+            {/* Toolbar */}
             <div className="flex items-center justify-center gap-1.5">
                 {/* History Button */}
                 <button

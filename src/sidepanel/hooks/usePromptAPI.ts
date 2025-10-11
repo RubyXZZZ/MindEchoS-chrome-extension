@@ -1,4 +1,3 @@
-// hooks/usePromptAPI.ts
 import { useState, useCallback, useEffect } from 'react';
 import { PromptAI } from '../services/ai/promptAI';
 import { KnowledgeCard } from '../types/card.types';

@@ -1,6 +1,3 @@
-// background.ts
-// Simplified version: No AI processing, data passing only
-
 console.log('[MindEchoS] Background script loaded');
 
 // ============= Content Script Management =============
@@ -142,7 +139,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
                 }
             }
         });
-        return true;
+        return true; // Keep message channel open for async response
     }
 
     // Handle Webpage request from sidepanel

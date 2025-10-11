@@ -1,4 +1,3 @@
-// components/common/EnhancedMarkdownRenderer.tsx
 // Enhanced Markdown renderer for Example Card with better structure
 
 import React from 'react';
@@ -18,7 +17,7 @@ export const EgCardRenderer: React.FC<EgCardRendererProps> = ({
         let key = 0;
 
         while (remaining.length > 0) {
-            // Bold (**text**)
+
             const boldMatch = remaining.match(/^(.*?)\*\*(.+?)\*\*/);
             if (boldMatch) {
                 if (boldMatch[1]) parts.push(<span key={key++}>{boldMatch[1]}</span>);

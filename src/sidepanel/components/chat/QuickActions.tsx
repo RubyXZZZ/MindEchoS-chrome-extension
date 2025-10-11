@@ -1,4 +1,4 @@
-// components/chat/QuickActions.tsx
+// AI chat 4 quick actions
 import React from 'react';
 import { BookOpen, GitCompare, GraduationCap, PenTool } from 'lucide-react';
 import { WritingTaskType } from '../../types/writing.types';

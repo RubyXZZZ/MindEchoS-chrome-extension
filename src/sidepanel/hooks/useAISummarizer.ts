@@ -1,4 +1,4 @@
-// hooks/useAISummarizer.ts
+
 // Hook for using Summarizer API in Sidepanel
 
 import { useEffect, useCallback, useState } from 'react';

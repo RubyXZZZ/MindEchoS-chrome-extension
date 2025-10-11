@@ -1,4 +1,3 @@
-// components/chat/ChatTopBar.tsx
 import React, { useState, useMemo } from 'react';
 import { Layers, X, Search, CheckSquare, Square } from 'lucide-react';
 import { KnowledgeCard } from '../../types/card.types';
@@ -9,7 +8,7 @@ interface ChatTopBarProps {
     selectedCards: KnowledgeCard[];
     allCards: KnowledgeCard[];
     selectedCardIds: string[];
-    onSelectionChange: (cardIds: string[]) => void;  // ← 改为直接设置
+    onSelectionChange: (cardIds: string[]) => void;
     onNewChat: () => void;
     isGenerating: boolean;
     isInitializing: boolean;
@@ -89,7 +88,6 @@ export const ChatTopBar: React.FC<ChatTopBarProps> = ({
     };
 
     const handleConfirm = () => {
-        // 直接设置最终选中状态（一次性更新）
         onSelectionChange([...tempSelectedIds]);
         handleClose();
     };

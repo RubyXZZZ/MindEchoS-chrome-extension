@@ -10,48 +10,30 @@
  * - Archive: ar-1728345680123-x5z7b9d2f
  */
 
-/**
- * Core ID generation function
- * @param prefix - Two-letter prefix to identify entity type
- * @returns Unique ID string
- */
+
 const generateId = (prefix: string): string => {
     const timestamp = Date.now();
     const random = Math.random().toString(36).substring(2, 11);
     return `${prefix}-${timestamp}-${random}`;
 };
 
-/**
- * Generate Card ID
- * @returns {string} cd-{timestamp}-{random}
- */
+
 export const generateCardId = (): string => {
     return generateId('cd');
 };
 
-/**
- * Generate Message ID
- * @returns {string} ms-{timestamp}-{random}
- */
+
 export const generateMessageId = (): string => {
     return generateId('ms');
 };
 
-/**
- * Generate Archive ID
- * @returns {string} ar-{timestamp}-{random}
- */
+
 export const generateArchiveId = (): string => {
     return generateId('ar');
 };
 
-/**
- * Get next available display number for Card
- * Display numbers are sequential: 1, 2, 3...
- * Note: Display number 0 is reserved for the sample card
- *
- * @returns Promise<number> Next available display number
- */
+// Get next available display number for Card
+
 export const getNextDisplayNumber = async (): Promise<number> => {
     const result = await chrome.storage.local.get(['nextDisplayNumber']);
     const nextNum = result.nextDisplayNumber || 1;

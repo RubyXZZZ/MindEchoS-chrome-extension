@@ -1,4 +1,4 @@
-// components/chat/ChatMarkdownRenderer.tsx
+// chat markdown setting
 import React, { useState, useRef, useEffect } from 'react';
 import { MoveHorizontal, X } from 'lucide-react';
 
@@ -6,7 +6,7 @@ interface CardReference {
     id: string;
     title: string;
     content: string;
-    displayNumber: number;  // ← 添加 displayNumber
+    displayNumber: number;
 }
 
 interface ChatMarkdownRendererProps {
@@ -24,7 +24,7 @@ export const ChatMarkdownRenderer: React.FC<ChatMarkdownRendererProps> = ({
     const [tooltipPosition, setTooltipPosition] = useState({ x: 0, y: 0 });
     const tooltipRef = useRef<HTMLDivElement>(null);
 
-    // 点击外部关闭 tooltip
+
     useEffect(() => {
         const handleClickOutside = (event: MouseEvent) => {
             if (tooltipRef.current && !tooltipRef.current.contains(event.target as Node)) {
@@ -173,8 +173,8 @@ export const ChatMarkdownRenderer: React.FC<ChatMarkdownRendererProps> = ({
             const parts: React.ReactNode[] = [];
             let lastIndex = 0;
 
-            // 匹配 **粗体**、*斜体*、`代码`、URL、Card引用
-            const regex = /(\*\*(.+?)\*\*|\*(.+?)\*|`(.+?)`|(https?:\/\/[^\s<>"{}|\\^`\[\]]+)|(Card\s*#?(\d+)|Card\s+(\d+)))/gi;
+            // markdown support
+            const regex = /(\*\*(.+?)\*\*|\*(.+?)\*|`(.+?)`|(https?:\/\/[^\s<>"{}|\\^`[\]]+)|(Card\s*#?(\d+)|Card\s+(\d+)))/gi;
             let match;
 
             while ((match = regex.exec(text)) !== null) {
@@ -205,7 +205,7 @@ export const ChatMarkdownRenderer: React.FC<ChatMarkdownRendererProps> = ({
                         </a>
                     );
                 } else if (match[6]) {
-                    // Card引用 - 轻微高亮但不可点击
+                    // refer card
                     parts.push(
                         <span
                             key={match.index}
@@ -345,7 +345,7 @@ export const ChatMarkdownRenderer: React.FC<ChatMarkdownRendererProps> = ({
 
     return (
         <>
-            {/* Card References Bar - 使用 displayNumber */}
+            {/* Card References Bar -  displayNumber */}
             {cards.length > 0 && (
                 <div className="flex flex-wrap items-center gap-1.5 mb-2 pb-2 border-b border-gray-100">
                     <span className="text-[10px] text-gray-500 font-medium">Context:</span>

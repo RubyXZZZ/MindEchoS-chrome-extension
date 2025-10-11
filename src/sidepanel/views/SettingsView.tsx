@@ -343,12 +343,12 @@ export const SettingsView: React.FC = () => {
                                             >
                                                 <div className="flex items-start justify-between mb-2">
                                                     <div className="flex-1 min-w-0">
-                                                        {/* 时间标题 */}
+                                                        {/* time title */}
                                                         <h4 className="text-sm font-semibold text-gray-900 mb-1.5">
                                                             📅 {archive.title}
                                                         </h4>
 
-                                                        {/* 卡片信息 */}
+                                                        {/* cards */}
                                                         {archive.selectedCards.length > 0 && (
                                                             <div className="flex items-center gap-1.5 text-xs text-gray-600 mb-1">
                                                                 <Layers className="w-3 h-3 flex-shrink-0" />
