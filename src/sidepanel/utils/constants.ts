@@ -7,10 +7,24 @@ export const CARD_COLORS = [
     'bg-gradient-to-br from-indigo-100 to-purple-100',
 ];
 
-export const CARD_CATEGORIES = ['All', 'Technology', 'Design', 'Business', 'Other'] as const;
+// --- New Category Logic ---
+
+// The filter to show all cards, not an assignable category.
+export const ALL_CARDS_FILTER = 'All';
+
+// The default category for new cards. This is an assignable category.
+export const DEFAULT_CATEGORY = 'Other';
+
+// The initial list of assignable categories.
+export const INITIAL_CATEGORIES = [DEFAULT_CATEGORY] as const;
+
+// Non-deletable categories.
+export const PROTECTED_CATEGORIES = [DEFAULT_CATEGORY];
 
 export const STORAGE_KEYS = {
     CARDS: 'knowledge_cards',
-    CHAT_HISTORY: 'chat_history',
+    CURRENT_CHAT: 'current_chat',        // 新增：当前对话
+    CHAT_ARCHIVES: 'chat_archives',      // 新增：归档对话
     PREFERENCES: 'user_preferences',
+    USER_CATEGORIES: 'userCategories', // Explicitly define storage key for categories
 } as const;

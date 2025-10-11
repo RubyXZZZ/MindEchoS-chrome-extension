@@ -1,10 +1,23 @@
+// types/chat.types.ts
+
+export type FunctionMode = 'understand' | 'compare' | 'quiz' | 'write' | 'chat';
+
 export interface ChatMessage {
     id: string;
     role: 'user' | 'assistant';
     content: string;
     timestamp: number;
-    status?: 'sending' | 'sent' | 'error';
-    relatedCards?: string[];
+    mode: 'chat';
+    status?: 'pending' | 'accepted' | 'rejected';
+    rejectionReason?: string;
+    triggeredBy?: string;
 }
 
-export type ChatMode = 'free' | 'cards' | 'mindmap';
+export interface ChatArchive {
+    id: string;
+    title: string;
+    messages: ChatMessage[];
+    selectedCards: string[];
+    createdAt: number;
+    archivedAt: number;
+}

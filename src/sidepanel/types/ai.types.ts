@@ -1,80 +1,44 @@
-// // Chrome Built-in AI API Types
-// // Note: 这些类型基于Chrome 129+ 的实验性API
-// // 实际使用时需要检查 window.ai 是否可用
-//
-// export interface ChromeAI {
-//     languageModel: {
-//         capabilities: () => Promise<AICapabilities>;
-//         create: (options?: AISessionOptions) => Promise<AISession>;
-//     };
-//     summarizer?: {
-//         capabilities: () => Promise<SummarizerCapabilities>;
-//         create: (options?: SummarizerOptions) => Promise<Summarizer>;
-//     };
-// }
-//
-// export interface AICapabilities {
-//     available: 'readily' | 'after-download' | 'no';
-//     defaultTemperature?: number;
-//     defaultTopK?: number;
-//     maxTopK?: number;
-// }
-//
-// export interface AISessionOptions {
-//     temperature?: number;
-//     topK?: number;
-//     systemPrompt?: string;
-// }
-//
-// export interface AISession {
-//     prompt: (text: string) => Promise<string>;
-//     promptStreaming: (text: string) => AsyncIterable<string>;
-//     destroy: () => void;
-//     tokensSoFar: number;
-//     tokensLeft: number;
-//     maxTokens: number;
-// }
-//
-// export interface SummarizerCapabilities {
-//     available: 'readily' | 'after-download' | 'no';
-// }
-//
-// export interface SummarizerOptions {
-//     type?: 'tl;dr' | 'key-points' | 'teaser' | 'headline';
-//     format?: 'plain' | 'markdown';
-//     length?: 'short' | 'medium' | 'long';
-// }
-//
-// export interface Summarizer {
-//     summarize: (text: string) => Promise<string>;
-//     summarizeStreaming: (text: string) => AsyncIterable<string>;
-//     destroy: () => void;
-// }
-//
-// // Custom AI Service Types
-// export interface AIService {
-//     isAvailable: () => Promise<boolean>;
-//     createSession: (options?: AISessionOptions) => Promise<AISession | null>;
-//     generateResponse: (prompt: string, context?: string) => Promise<string>;
-//     summarizeContent: (content: string, type?: SummarizerOptions['type']) => Promise<string>;
-//     extractKeywords: (text: string) => Promise<string[]>;
-// }
+// types/ai.types.ts
+// Chrome Summarizer API 类型定义 (Chrome 138+)
+// 基于官方文档：https://developer.chrome.com/docs/ai/summarizer-api
 
-// src/types/ai.types.ts
-export interface AICapabilities {
-    summarization: boolean;
-    prompting: boolean;
-    translation: boolean;
+// ============= Summarizer API Types =============
+
+export interface SummarizerMonitor {
+    addEventListener(event: 'downloadprogress', callback: (e: { loaded: number; total: number }) => void): void;
 }
 
-export interface SummarizationOptions {
-    type: 'key-points' | 'tl;dr' | 'teaser' | 'headline';
+export interface SummarizerOptions {
+    sharedContext?: string;
+    type?: 'key-points' | 'tldr' | 'teaser' | 'headline';
+    format?: 'markdown' | 'plain-text';
     length?: 'short' | 'medium' | 'long';
-    format?: 'plain-text' | 'markdown';
+    monitor?: (m: SummarizerMonitor) => void;
 }
 
-export interface PromptOptions {
-    systemPrompt?: string;
-    temperature?: number;
-    topK?: number;
+export interface SummarizerInstance {
+    summarize(text: string, options?: { context?: string }): Promise<string>;
+    summarizeStreaming(text: string, options?: { context?: string }): AsyncIterable<string>;
+    destroy(): void;
 }
+
+// ============= Result Types =============
+
+export interface SummarizeResult {
+    success: boolean;
+    title?: string;
+    content?: string;
+    error?: string;
+}
+
+// ============= Global Declarations =============
+
+declare global {
+    class Summarizer {
+        static availability(): Promise<'readily' | 'after-download' | 'no'>;
+        static create(options?: SummarizerOptions): Promise<SummarizerInstance>;
+    }
+}
+
+// 导出空对象以确保文件被视为模块
+export {};
