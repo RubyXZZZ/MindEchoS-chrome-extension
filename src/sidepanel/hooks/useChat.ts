@@ -1,4 +1,3 @@
-// hooks/useChat.ts
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { useStore } from '../store';
 import { usePromptAPI } from './usePromptAPI';
@@ -34,12 +33,12 @@ export function useChat() {
 
     const selectedCards = cards.filter(c => selectedCardsForChat.includes(c.id));
 
-    // 加载对话
+
     useEffect(() => {
         loadCurrentChat();
     }, []);
 
-    // 保存对话（生成完成后）
+
     useEffect(() => {
         const hasPendingMsg = messages.some(m => m.status === 'pending');
         if (messages.length > 0 && !hasPendingMsg) {

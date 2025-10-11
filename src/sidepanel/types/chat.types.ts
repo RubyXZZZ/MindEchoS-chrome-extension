@@ -1,5 +1,3 @@
-// types/chat.types.ts
-
 // export type FunctionMode = 'understand' | 'compare' | 'quiz' | 'write' | 'chat';
 
 export interface ChatMessage {

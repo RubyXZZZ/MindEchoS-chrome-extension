@@ -1,4 +1,4 @@
-// src/components/icons/AIRobotIcon.tsx
+// chat view AI robot icon
 import React from 'react';
 
 interface AIRobotIconProps {

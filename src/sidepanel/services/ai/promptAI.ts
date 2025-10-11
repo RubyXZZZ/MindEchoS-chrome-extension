@@ -1,4 +1,3 @@
-// services/ai/promptAI.ts
 // Chrome Prompt API Implementation
 
 import type {
@@ -6,7 +5,7 @@ import type {
     AIAvailability
 } from '../../types/ai.types';
 
-// 集中管理所有功能的 Prompts
+// Prompts
 export const FUNCTION_PROMPTS = {
     understand: {
         getPrompt: (cardCount: number) => `Help me understand the card content simply and effectively. Follow these guidelines:

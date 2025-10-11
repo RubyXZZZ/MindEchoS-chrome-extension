@@ -1,4 +1,4 @@
-// src/components/manage/CardsManageToolbar.tsx
+// cards view - manage mode
 import React, { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { Trash2, Download, FolderInput, MessageSquare } from 'lucide-react';
@@ -33,7 +33,6 @@ export const CardsManageToolbar: React.FC<CardsManageToolbarProps> = ({
     const categoryButtonRef = useRef<HTMLButtonElement>(null);
     const [buttonPosition, setButtonPosition] = useState({ top: 0, right: 0 });
 
-    // Filter out non-existent card IDs and sample card
     const validSelectedCards = selectedCards.filter(id =>
         cards.some(card => card.id === id) && id !== SAMPLE_CARD_ID
     );
@@ -197,7 +196,7 @@ export const CardsManageToolbar: React.FC<CardsManageToolbarProps> = ({
 
     return (
         <>
-            {/* Toolbar - 横向布局，拉长按钮 - 更紧凑 */}
+            {/* Toolbar  */}
             <div className="mt-2 pt-2 border-t border-gray-200">
                 <div className="flex items-center justify-center gap-1.5">
                     {/* AI Button */}

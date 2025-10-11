@@ -1,4 +1,3 @@
-// content.ts
 // Responsibility: Respond to background requests, get selected text or full webpage content
 
 import { Readability } from '@mozilla/readability';

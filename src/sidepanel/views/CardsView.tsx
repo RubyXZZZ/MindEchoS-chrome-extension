@@ -1,4 +1,3 @@
-// src/views/CardsView.tsx
 import React, { useState, useMemo, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { Plus, Search, X, Check, CheckSquare, Square } from 'lucide-react';
@@ -431,7 +430,7 @@ export const CardsView: React.FC<CardsViewProps> = ({
                                     type="text"
                                     value={newCategoryValue}
                                     onChange={(e) => setNewCategoryValue(e.target.value)}
-                                    onKeyPress={(e) => e.key === 'Enter' && newCategoryValue.trim() && handleAddNewCategory()}
+                                    onKeyDown={(e) => e.key === 'Enter' && newCategoryValue.trim() && handleAddNewCategory()}
                                     className="w-24 px-2 py-1 bg-white border border-gray-300 rounded-md text-xs focus:outline-none focus:ring-1 focus:ring-emerald-500"
                                     placeholder="New category"
                                     autoFocus

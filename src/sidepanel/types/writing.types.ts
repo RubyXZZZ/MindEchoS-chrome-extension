@@ -1,5 +1,4 @@
-// types/writing.types.ts
-// Writing Task 类型定义
+// Writing Task
 
 import { FUNCTION_PROMPTS } from '../services/ai/promptAI';
 

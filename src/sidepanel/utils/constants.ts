@@ -1,5 +1,3 @@
-// src/utils/constants.ts
-
 export const CARD_COLORS = [
     'bg-gradient-to-br from-purple-100 to-pink-100',
     'bg-gradient-to-br from-blue-100 to-cyan-100',

@@ -1,7 +1,3 @@
-// services/ai/summarizeAI.ts
-// Chrome Summarizer API Implementation (Chrome 138+)
-// Based on official docs: https://developer.chrome.com/docs/ai/summarizer-api
-
 import type {
     SummarizerOptions,
     SummarizerInstance,

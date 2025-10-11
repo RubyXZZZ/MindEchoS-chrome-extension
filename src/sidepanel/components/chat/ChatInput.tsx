@@ -1,4 +1,4 @@
-// components/chat/ChatInput.tsx
+// AI Chat - Input
 import React from 'react';
 import { Send, Square } from 'lucide-react';
 

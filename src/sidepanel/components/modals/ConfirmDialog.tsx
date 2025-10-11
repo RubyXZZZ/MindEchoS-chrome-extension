@@ -1,4 +1,4 @@
-// src/components/modals/ConfirmDialog.tsx
+// confirm  dialog
 import React from 'react';
 import { createPortal } from 'react-dom';
 import { X } from 'lucide-react';

@@ -1,5 +1,4 @@
-// components/common/MarkdownRenderer.tsx
-// 极简 Markdown 渲染器 - 只处理列表项
+// markdown for card
 
 import React from 'react';
 
@@ -30,7 +29,7 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({ content, cla
             }
         };
 
-        // 清理文本中的 markdown 符号
+        // delete unneeded markdown symbols
         const cleanText = (str: string): string => {
             return str
                 .replace(/\*\*/g, '')  // 去除粗体符号 **
@@ -42,20 +41,20 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({ content, cla
         lines.forEach((line, index) => {
             const trimmedLine = line.trim();
 
-            // 空行
+            // empty line
             if (!trimmedLine) {
                 flushList();
                 return;
             }
 
-            // 列表项 (* - •)
+            // bullet list (* - •)
             const listMatch = trimmedLine.match(/^[*\-•]\s+(.+)$/);
             if (listMatch) {
                 listItems.push(listMatch[1]);
                 return;
             }
 
-            // 普通段落
+            // regular paragraph
             flushList();
             elements.push(
                 <p key={index} className="mb-2">
@@ -64,7 +63,7 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({ content, cla
             );
         });
 
-        // 处理最后可能存在的列表
+        // flush any remaining list
         flushList();
 
         return elements.length > 0 ? elements : text;

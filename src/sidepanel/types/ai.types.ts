@@ -1,6 +1,5 @@
-// types/ai.types.ts
+
 // Chrome AI APIs Type Definitions (Chrome 138+)
-// Based on official docs:
 // - Summarizer API: https://developer.chrome.com/docs/ai/summarizer-api
 // - Prompt API: https://developer.chrome.com/docs/ai/prompt-api
 
@@ -57,17 +56,17 @@ export interface PromptSessionOptions {
 export interface PromptSession {
     prompt(input: string, options?: {
         signal?: AbortSignal;
-        responseConstraint?: any;
+        responseConstraint?: unknown;
         omitResponseConstraintInput?: boolean;
     }): Promise<string>;
     promptStreaming(input: string, options?: {
         signal?: AbortSignal;
-        responseConstraint?: any;
+        responseConstraint?: unknown;
         omitResponseConstraintInput?: boolean;
     }): AsyncIterable<string>;
     append(messages: Array<{
         role: 'system' | 'user' | 'assistant';
-        content: string | Array<{ type: string; value: any }>;
+        content: string | Array<{ type: string; value: unknown }>;
     }>): Promise<void>;
     destroy(): void;
     clone(options?: { signal?: AbortSignal }): Promise<PromptSession>;
@@ -110,5 +109,5 @@ declare global {
     }
 }
 
-// Export empty object to ensure this file is treated as a module
+
 export {};

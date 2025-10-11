@@ -1,3 +1,4 @@
+// state management
 import { create } from 'zustand';
 import { KnowledgeCard } from '../types/card.types';
 import { ChatMessage, ChatArchive } from '../types/chat.types';
@@ -424,7 +425,7 @@ export const useStore = create<AppState>((set, get) => ({
                 return;
             }
 
-            // 使用归档时间作为标题
+            // archive time as title
             const title = formatArchiveDate(Date.now());
 
             const archive: ChatArchive = {
@@ -514,7 +515,7 @@ export const useStore = create<AppState>((set, get) => ({
 
             let nextNumber = 1;
             const updatedCards = cards.map((card) => {
-                // Sample 卡片保持编号 0
+                // Sample == 00
                 if (card.id === SAMPLE_CARD_ID) {
                     return { ...card, displayNumber: 0 };
                 }

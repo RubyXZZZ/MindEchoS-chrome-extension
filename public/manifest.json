@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "MindEchoS",
   "version": "1.0.0",
-  "description": "AI-powered knowledge management for capturing and organizing web content",
+  "description": "Built-in AI-powered knowledge management for capturing and organizing web content",
   "icons": {
     "16": "icon-16.png",
     "48": "icon-48.png",

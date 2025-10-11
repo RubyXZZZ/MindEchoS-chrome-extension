@@ -81,7 +81,7 @@ export const CardItem: React.FC<CardItemProps> = ({
             `}
             onClick={handleCardClick}
         >
-            {/* Card Number Badge - 始终显示 */}
+            {/* Card Number Badge  */}
             <div className="absolute -left-[12px] top-[25px] bg-gray-200/80 text-gray-600 px-1 py-0.5 text-[9px] font-medium shadow-sm z-10 rounded-r-sm border-r border-gray-300/30">
                 {String(card.displayNumber).padStart(2, '0')}
             </div>

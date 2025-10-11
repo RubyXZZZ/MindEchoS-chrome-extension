@@ -17,24 +17,22 @@ export const NavigationBar: React.FC<NavigationBarProps> = ({
     const { currentView, setCurrentView } = useStore();
     const { isManageMode } = manageState;
 
-    // 记住上一个 cards/chat 视图（用于 settings 时保持标签位置）
+    // remember last view
     const [lastContentView, setLastContentView] = React.useState<'cards' | 'chat'>('cards');
 
-    // 更新 lastContentView
+
     React.useEffect(() => {
         if (currentView === 'cards' || currentView === 'chat') {
             setLastContentView(currentView);
         }
     }, [currentView]);
 
-    // 用于显示标签位置的视图（settings 时使用 lastContentView）
+
     const displayView = currentView === 'settings' ? lastContentView : currentView;
 
     const handleLogoClick = () => {
-        // 只切换到 settings，不改变其他视图状态
         setCurrentView('settings');
 
-        // 退出 Manage 模式（如果正在 Manage）
         if (isManageMode) {
             if (currentView === 'cards') {
                 onManageStateChange({
