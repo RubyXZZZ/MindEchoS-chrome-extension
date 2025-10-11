@@ -14,5 +14,5 @@ export interface ChatManageState extends BaseManageState {
     // Chat 视图不需要选择卡片，但可能需要其他状态
 }
 
-// 联合类型
+
 export type ManageState = CardsManageState | ChatManageState;

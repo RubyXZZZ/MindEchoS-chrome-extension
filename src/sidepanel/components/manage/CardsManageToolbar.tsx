@@ -1,9 +1,11 @@
+// src/components/manage/CardsManageToolbar.tsx
 import React, { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
-import { Trash2, Download, FolderPlus, MessageSquare } from 'lucide-react';
+import { Trash2, Download, FolderInput, MessageSquare } from 'lucide-react';
 import { useStore } from '../../store';
 import { CategorySelector } from '../layout/CategorySelector';
 import { ConfirmDialog } from '../modals/ConfirmDialog';
+import { STORAGE_KEYS, SAMPLE_CARD_ID } from '../../utils/constants';
 
 interface CardsManageToolbarProps {
     selectedCards: string[];
@@ -14,20 +16,85 @@ export const CardsManageToolbar: React.FC<CardsManageToolbarProps> = ({
                                                                           selectedCards,
                                                                           onActionComplete
                                                                       }) => {
-    const { cards, deleteCard, updateCard, setSelectedCardsForChat, setCurrentView } = useStore();
+    const {
+        cards,
+        deleteCard,
+        updateCard,
+        selectedCardsForChat,
+        setSelectedCardsForChat,
+        setCurrentView,
+        messages,
+        clearMessages
+    } = useStore();
+
     const [showCategorySelector, setShowCategorySelector] = useState(false);
     const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+    const [showNewChatDialog, setShowNewChatDialog] = useState(false);
     const categoryButtonRef = useRef<HTMLButtonElement>(null);
     const [buttonPosition, setButtonPosition] = useState({ top: 0, right: 0 });
 
-    // 过滤掉不存在的卡片 ID（防止删除分类后状态不同步）
+    // Filter out non-existent card IDs and sample card
     const validSelectedCards = selectedCards.filter(id =>
-        cards.some(card => card.id === id)
+        cards.some(card => card.id === id) && id !== SAMPLE_CARD_ID
     );
 
-    const handleLinkToChat = () => {
-        setSelectedCardsForChat(validSelectedCards);
+    const handleLinkToChat = async () => {
+        if (validSelectedCards.length === 0) {
+            alert('Please select at least one card');
+            return;
+        }
+
+        // Check if there's actual conversation
+        const result = await chrome.storage.local.get(STORAGE_KEYS.CURRENT_CHAT);
+        const savedMessages = result[STORAGE_KEYS.CURRENT_CHAT]?.messages || [];
+        const currentMessages = messages.length > 0 ? messages : savedMessages;
+
+        // Has real conversation if there are any user or assistant messages
+        const hasRealConversation = currentMessages.length > 0;
+
+        if (hasRealConversation) {
+            // Show dialog to choose action
+            setShowNewChatDialog(true);
+        } else {
+            // Direct to chat with selected cards (new conversation)
+            setSelectedCardsForChat(validSelectedCards);
+            onActionComplete();
+            // Use setTimeout to ensure state is updated before navigation
+            setTimeout(() => {
+                setCurrentView('chat');
+            }, 0);
+        }
+    };
+
+    const handleContinueChat = async () => {
+        // Add new cards to existing selected cards (remove duplicates)
+        const combinedCards = [...new Set([...selectedCardsForChat, ...validSelectedCards])];
+
+        // Update state
+        setSelectedCardsForChat(combinedCards);
+
+        // Save to storage
+        await chrome.storage.local.set({
+            [STORAGE_KEYS.CURRENT_CHAT]: {
+                messages,
+                selectedCards: combinedCards,
+                lastUpdated: Date.now()
+            }
+        });
+
+        setShowNewChatDialog(false);
+        onActionComplete();
+
+        // Navigate after ensuring state is persisted
         setCurrentView('chat');
+    };
+
+    const handleStartNewChat = async () => {
+        clearMessages();
+        setSelectedCardsForChat(validSelectedCards);
+        await chrome.storage.local.remove(STORAGE_KEYS.CURRENT_CHAT);
+        setCurrentView('chat');
+        setShowNewChatDialog(false);
         onActionComplete();
     };
 
@@ -44,15 +111,38 @@ export const CardsManageToolbar: React.FC<CardsManageToolbarProps> = ({
 
     const handleExport = () => {
         const selectedData = cards.filter(card => validSelectedCards.includes(card.id));
-        const dataStr = JSON.stringify(selectedData, null, 2);
-        const dataUri = 'data:application/json;charset=utf-8,' + encodeURIComponent(dataStr);
+
+        // Format as readable text
+        const textContent = selectedData.map((card, index) => {
+            const lines = [
+                `Card ${index + 1}`,
+                '='.repeat(50),
+                `Title: ${card.title}`,
+                `Category: ${card.category || 'Other'}`,
+                `URL: ${card.url || 'N/A'}`,
+                `Created: ${new Date(card.timestamp).toLocaleString()}`,
+                '',
+                'Content:',
+                '-'.repeat(50),
+                card.content,
+                '',
+                '='.repeat(50),
+                ''
+            ];
+            return lines.join('\n');
+        }).join('\n');
+
+        const header = `Knowledge Cards Export\nTotal Cards: ${selectedData.length}\nExported: ${new Date().toLocaleString()}\n\n${'='.repeat(50)}\n\n`;
+        const fullText = header + textContent;
+
+        const dataUri = 'data:text/plain;charset=utf-8,' + encodeURIComponent(fullText);
         const linkElement = document.createElement('a');
         linkElement.setAttribute('href', dataUri);
-        linkElement.setAttribute('download', `cards_export_${Date.now()}.json`);
+        linkElement.setAttribute('download', `cards_export_${Date.now()}.txt`);
         linkElement.click();
     };
 
-    // 获取选中卡片的分类情况
+    // Get selected cards category
     const getSelectedCardsCategory = (): string => {
         if (validSelectedCards.length === 0) return '';
 
@@ -63,9 +153,8 @@ export const CardsManageToolbar: React.FC<CardsManageToolbarProps> = ({
         return allSame ? (firstCategory || 'Other') : '';
     };
 
-    // 处理分类变更
+    // Handle category change
     const handleCategoryChange = async (newCategory: string) => {
-        // 批量更新所有选中卡片的分类
         for (const cardId of validSelectedCards) {
             await updateCard(cardId, { category: newCategory });
         }
@@ -73,7 +162,7 @@ export const CardsManageToolbar: React.FC<CardsManageToolbarProps> = ({
         onActionComplete();
     };
 
-    // 计算按钮位置
+    // Calculate button position
     useEffect(() => {
         if (showCategorySelector && categoryButtonRef.current) {
             const rect = categoryButtonRef.current.getBoundingClientRect();
@@ -84,7 +173,7 @@ export const CardsManageToolbar: React.FC<CardsManageToolbarProps> = ({
         }
     }, [showCategorySelector]);
 
-    // 点击外部关闭
+    // Click outside to close
     useEffect(() => {
         const handleClickOutside = (event: MouseEvent) => {
             const target = event.target as HTMLElement;
@@ -108,83 +197,90 @@ export const CardsManageToolbar: React.FC<CardsManageToolbarProps> = ({
 
     return (
         <>
-            <div className="mt-3 pt-3 border-t border-gray-200 flex items-center justify-between">
-                <span className="text-xs text-gray-600">
-                    已选择 {validSelectedCards.length} 张卡片
-                </span>
-                <div className="flex gap-1">
+            {/* Toolbar - 横向布局，拉长按钮 - 更紧凑 */}
+            <div className="mt-2 pt-2 border-t border-gray-200">
+                <div className="flex items-center justify-center gap-1.5">
+                    {/* AI Button */}
                     <button
                         onClick={handleLinkToChat}
                         disabled={validSelectedCards.length === 0}
-                        className="px-2 py-1 bg-blue-100 text-blue-700 text-xs rounded hover:bg-blue-200 disabled:opacity-50 flex items-center gap-1"
+                        className="flex items-center justify-center gap-1.5 px-2.5 py-1.5 bg-green-100 text-green-700 rounded-lg hover:bg-green-200 disabled:opacity-50 transition-colors min-w-[70px]"
+                        title="Link to AI Chat"
                     >
-                        <MessageSquare className="w-3 h-3" />
-                        AI
+                        <MessageSquare className="w-3.5 h-3.5" />
+                        <span className="text-xs font-medium">AI</span>
                     </button>
+
+                    {/* Export Button */}
                     <button
                         onClick={handleExport}
                         disabled={validSelectedCards.length === 0}
-                        className="px-2 py-1 bg-purple-100 text-purple-700 text-xs rounded hover:bg-purple-200 disabled:opacity-50 flex items-center gap-1"
+                        className="flex items-center justify-center gap-1.5 px-2.5 py-1.5 bg-orange-100 text-orange-700 rounded-lg hover:bg-orange-200 disabled:opacity-50 transition-colors min-w-[70px]"
+                        title="Export selected cards"
                     >
-                        <Download className="w-3 h-3" />
-                        Export
-                    </button>
-                    <button
-                        onClick={handleDelete}
-                        disabled={validSelectedCards.length === 0}
-                        className="px-2 py-1 bg-red-100 text-red-700 text-xs rounded hover:bg-red-200 disabled:opacity-50 flex items-center gap-1"
-                    >
-                        <Trash2 className="w-3 h-3" />
-                        Delete
+                        <Download className="w-3.5 h-3.5" />
+                        <span className="text-xs font-medium">Export</span>
                     </button>
 
-                    {/* 分类按钮 */}
+                    {/* Move To Button */}
                     <button
                         ref={categoryButtonRef}
                         onClick={() => setShowCategorySelector(!showCategorySelector)}
                         disabled={validSelectedCards.length === 0}
-                        className={`px-2 py-1 text-xs rounded flex items-center gap-1 transition-colors ${
+                        className={`flex items-center justify-center gap-1.5 px-2.5 py-1.5 rounded-lg transition-colors disabled:opacity-50 min-w-[70px] ${
                             showCategorySelector
-                                ? 'bg-orange-200 text-orange-700'
-                                : 'bg-orange-100 text-orange-700 hover:bg-orange-200'
-                        } disabled:opacity-50`}
+                                ? 'bg-blue-200 text-blue-700'
+                                : 'bg-blue-100 text-blue-700 hover:bg-blue-200'
+                        }`}
+                        title="Move to category"
                     >
-                        <FolderPlus className="w-3 h-3" />
-                        Category
+                        <FolderInput className="w-3.5 h-3.5" />
+                        <span className="text-xs font-medium">Move</span>
                     </button>
 
-                    {/* 使用Portal渲染CategorySelector到body */}
-                    {showCategorySelector && createPortal(
-                        <div
-                            className="category-selector-portal"
-                            style={{
-                                position: 'fixed',
-                                top: `${buttonPosition.top}px`,
-                                right: `${buttonPosition.right}px`,
-                                zIndex: 999999,
-                                minWidth: '240px'
-                            }}
-                        >
-                            <CategorySelector
-                                value={currentCategory}
-                                onChange={handleCategoryChange}
-                                placeholder={currentCategory === '' ? '选择分类' : currentCategory}
-                                dropDirection="down"
-                                manageMode={true}
-                                onCancel={() => setShowCategorySelector(false)}
-                            />
-                        </div>,
-                        document.body
-                    )}
+                    {/* Delete Button */}
+                    <button
+                        onClick={handleDelete}
+                        disabled={validSelectedCards.length === 0}
+                        className="flex items-center justify-center gap-1.5 px-2.5 py-1.5 bg-red-100 text-red-700 rounded-lg hover:bg-red-200 disabled:opacity-50 transition-colors min-w-[70px]"
+                        title="Delete selected cards"
+                    >
+                        <Trash2 className="w-3.5 h-3.5" />
+                        <span className="text-xs font-medium">Delete</span>
+                    </button>
                 </div>
+
+                {/* Render CategorySelector to body using Portal */}
+                {showCategorySelector && createPortal(
+                    <div
+                        className="category-selector-portal"
+                        style={{
+                            position: 'fixed',
+                            top: `${buttonPosition.top}px`,
+                            right: `${buttonPosition.right}px`,
+                            zIndex: 999999,
+                            minWidth: '240px'
+                        }}
+                    >
+                        <CategorySelector
+                            value={currentCategory}
+                            onChange={handleCategoryChange}
+                            placeholder={currentCategory === '' ? 'Select category' : currentCategory}
+                            dropDirection="down"
+                            manageMode={true}
+                            onCancel={() => setShowCategorySelector(false)}
+                        />
+                    </div>,
+                    document.body
+                )}
             </div>
 
-            {/* 批量删除确认对话框 - 使用 Portal 渲染到 body */}
+            {/* Batch delete confirmation dialog */}
             {showDeleteConfirm && createPortal(
                 <ConfirmDialog
                     isOpen={showDeleteConfirm}
                     title="Delete Multiple Cards"
-                    message={`Are you sure you want to delete ${validSelectedCards.length} card(s)？This action can’t be undone.`}
+                    message={`Are you sure you want to delete ${validSelectedCards.length} card(s)? This action can't be undone.`}
                     confirmText="Delete"
                     cancelText="Cancel"
                     onConfirm={handleConfirmDelete}
@@ -192,9 +288,30 @@ export const CardsManageToolbar: React.FC<CardsManageToolbarProps> = ({
                 />,
                 document.body
             )}
+
+            {/* New Chat Dialog - Simplified */}
+            {showNewChatDialog && createPortal(
+                <ConfirmDialog
+                    isOpen={showNewChatDialog}
+                    title={`Add ${validSelectedCards.length} Card${validSelectedCards.length > 1 ? 's' : ''} to Chat?`}
+                    message={
+                        <div className="space-y-2">
+                            <p className="text-sm text-gray-700">
+                                You have an ongoing conversation with {messages.length} message{messages.length > 1 ? 's' : ''}.
+                            </p>
+                            <div className="p-2 bg-blue-50 border border-blue-200 rounded text-xs text-blue-800">
+                                💡 <strong>Tip:</strong> To save the current conversation, use the Archive button in Chat view first.
+                            </div>
+                        </div>
+                    }
+                    confirmText="Continue & Add Cards"
+                    cancelText="Start New (Discard Current)"
+                    onConfirm={handleContinueChat}
+                    onCancel={handleStartNewChat}
+                    confirmButtonStyle="primary"
+                />,
+                document.body
+            )}
         </>
     );
 };
-
-
-

@@ -6,14 +6,17 @@ import {
     DEFAULT_CATEGORY,
     PROTECTED_CATEGORIES,
     STORAGE_KEYS,
-    CARD_COLORS
+    SAMPLE_CARD_ID
 } from '../utils/constants';
+import { generateArchiveId } from '../utils/idGenerator';
+import { formatArchiveDate } from '../utils/formatters';
 
 interface SelectionPayload {
     text: string;
     url: string;
     title?: string;
     needsAISummarize?: boolean;
+    needsContentSummary?: boolean;
 }
 
 interface AppState {
@@ -32,6 +35,10 @@ interface AppState {
     selectedCardsForChat: string[];
     isTyping: boolean;
     chatArchives: ChatArchive[];
+
+    // Storage
+    storageUsed: number;
+    storageLimit: number;
 
     // UI
     currentView: 'cards' | 'chat' | 'settings';
@@ -69,8 +76,13 @@ interface AppState {
     archiveCurrentChat: () => Promise<void>;
     loadArchive: (archiveId: string) => void;
     deleteArchive: (archiveId: string) => Promise<void>;
-    exportArchive: (archiveId: string) => void;
     loadChatArchives: () => Promise<void>;
+
+    // Settings Actions
+    resetCardNumbers: () => Promise<void>;
+
+    // Storage Actions
+    updateStorageUsage: () => Promise<void>;
 
     // UI Actions
     setCurrentView: (view: 'cards' | 'chat' | 'settings') => void;
@@ -94,6 +106,10 @@ export const useStore = create<AppState>((set, get) => ({
     isTyping: false,
     chatArchives: [],
 
+    // === Storage State ===
+    storageUsed: 0,
+    storageLimit: 10485760,  // 10 MB
+
     // === UI State ===
     currentView: 'cards',
     showAddModal: false,
@@ -112,7 +128,8 @@ export const useStore = create<AppState>((set, get) => ({
                         initialSelection: {
                             text: newValue.text,
                             url: newValue.url,
-                            needsAISummarize: newValue.needsAISummarize || false
+                            needsAISummarize: newValue.needsAISummarize || false,
+                            needsContentSummary: newValue.needsContentSummary !== false
                         },
                         showAddModal: true
                     });
@@ -134,7 +151,8 @@ export const useStore = create<AppState>((set, get) => ({
                     initialSelection: {
                         text: pendingData.text,
                         url: pendingData.url,
-                        needsAISummarize: pendingData.needsAISummarize || false
+                        needsAISummarize: pendingData.needsAISummarize || false,
+                        needsContentSummary: pendingData.needsContentSummary !== false
                     },
                     showAddModal: true
                 });
@@ -150,27 +168,51 @@ export const useStore = create<AppState>((set, get) => ({
         try {
             const result = await chrome.storage.local.get([STORAGE_KEYS.CARDS, STORAGE_KEYS.USER_CATEGORIES]);
 
-            console.log('Loading from storage:', result);
-
             if (!result[STORAGE_KEYS.CARDS] || !Array.isArray(result[STORAGE_KEYS.CARDS])) {
                 const sampleCard: KnowledgeCard = {
-                    id: 'sample-card-1',
-                    title: '欢迎使用知识卡片!',
-                    content: '这是一个示例卡片。你可以使用右键菜单或快捷键从任何网页上捕获选中的文本来创建新卡片。',
+                    id: SAMPLE_CARD_ID,
+                    displayNumber: 0,
+                    title: 'Quick Start Guide',
+                    content: `## 📝 Create Cards with AI-Summarize
+1. **From selected text**:   
+    • Click ➕ → **SELECTION**
+    • **RIGHT-CLICK** or **SHORTCUT** when panel is closed
+💡 Win:\`Ctl+Shift+S\` Mac: \`Cmd+Shift+S\` (⚙️ Settings)
+2. **From Webpage Article**: Click ➕→ **WEBPAGE**
+
+---
+
+## 🗂️ Organize Cards:
+1. 🔍 Search (toggle AI SWITCH for semantic matching)
+2. Manage mode: batch select, delete, export, move categories
+
+---
+
+## 🤖 AI Interaction:
+1. Click 🤖 or use MANAGE to select cards for AI context
+2. AI reads selected cards and answers questions
+3. Quick actions: Understand, Compare, Quiz, Write (Summary, Outline, Draft)
+
+---
+
+## 📌 Tips:
+• Short text (under 180 chars): saves directly without AI
+• First AI use: wait 2-5 sec for initialization
+• Reset card number in ⚙️ Settings if needed
+• Archive conversations via Manage mode (AI view)
+• Privacy: Chrome's built-in Gemini Nano runs locally`,
                     url: '',
                     timestamp: Date.now(),
                     tags: [],
                     category: DEFAULT_CATEGORY,
-                    color: CARD_COLORS[0],
+                    color: 'bg-yellow-100',
                 };
 
                 await chrome.storage.local.set({ [STORAGE_KEYS.CARDS]: [sampleCard] });
                 set({ cards: [sampleCard] });
-                console.log('Created sample card');
             } else {
                 const loadedCards = result[STORAGE_KEYS.CARDS];
                 set({ cards: loadedCards });
-                console.log(`Loaded ${loadedCards.length} cards from storage`);
             }
 
             if (result[STORAGE_KEYS.USER_CATEGORIES] && Array.isArray(result[STORAGE_KEYS.USER_CATEGORIES])) {
@@ -178,7 +220,6 @@ export const useStore = create<AppState>((set, get) => ({
                     typeof c === 'string' && c.trim() !== ''
                 );
                 set({ userCategories: loadedUserCategories });
-                console.log(`Loaded ${loadedUserCategories.length} user categories`);
             }
         } catch (error) {
             console.error('Error loading store:', error);
@@ -194,8 +235,7 @@ export const useStore = create<AppState>((set, get) => ({
             set({ cards: newCards });
             await chrome.storage.local.set({ [STORAGE_KEYS.CARDS]: newCards });
 
-            console.log('Card added successfully:', card.id);
-            console.log('Total cards now:', newCards.length);
+            get().updateStorageUsage();
         } catch (error) {
             console.error('Error adding card:', error);
             const originalCards = get().cards.filter(c => c.id !== card.id);
@@ -213,7 +253,7 @@ export const useStore = create<AppState>((set, get) => ({
             set({ cards: newCards });
             await chrome.storage.local.set({ [STORAGE_KEYS.CARDS]: newCards });
 
-            console.log('Card updated:', id);
+            get().updateStorageUsage();
         } catch (error) {
             console.error('Error updating card:', error);
         }
@@ -227,7 +267,7 @@ export const useStore = create<AppState>((set, get) => ({
             set({ cards: newCards });
             await chrome.storage.local.set({ [STORAGE_KEYS.CARDS]: newCards });
 
-            console.log('Card deleted:', id);
+            get().updateStorageUsage();
         } catch (error) {
             console.error('Error deleting card:', error);
         }
@@ -245,7 +285,6 @@ export const useStore = create<AppState>((set, get) => ({
                 const newUserCategories = [...state.userCategories, newCategory];
                 set({ userCategories: newUserCategories });
                 await chrome.storage.local.set({ [STORAGE_KEYS.USER_CATEGORIES]: newUserCategories });
-                console.log('Category added:', newCategory);
             }
         } catch (error) {
             console.error('Error adding category:', error);
@@ -283,7 +322,7 @@ export const useStore = create<AppState>((set, get) => ({
                 [STORAGE_KEYS.USER_CATEGORIES]: newUserCategories
             });
 
-            console.log('Category and cards deleted:', category);
+            get().updateStorageUsage();
         } catch (error) {
             console.error('Error deleting category and cards:', error);
         }
@@ -312,8 +351,6 @@ export const useStore = create<AppState>((set, get) => ({
                 [STORAGE_KEYS.CARDS]: newCards,
                 [STORAGE_KEYS.USER_CATEGORIES]: newUserCategories
             });
-
-            console.log('Category deleted and cards moved:', category);
         } catch (error) {
             console.error('Error moving cards and deleting category:', error);
         }
@@ -373,7 +410,6 @@ export const useStore = create<AppState>((set, get) => ({
             await chrome.storage.local.set({
                 [STORAGE_KEYS.CURRENT_CHAT]: currentChat
             });
-            console.log('[Store] Current chat saved');
         } catch (error) {
             console.error('[Store] Error saving current chat:', error);
         }
@@ -388,14 +424,11 @@ export const useStore = create<AppState>((set, get) => ({
                 return;
             }
 
-            // 生成归档标题（从第一条用户消息）
-            const firstUserMsg = state.messages.find(m => m.role === 'user');
-            const title = firstUserMsg
-                ? firstUserMsg.content.substring(0, 50) + (firstUserMsg.content.length > 50 ? '...' : '')
-                : 'Untitled Chat';
+            // 使用归档时间作为标题
+            const title = formatArchiveDate(Date.now());
 
             const archive: ChatArchive = {
-                id: `archive_${Date.now()}`,
+                id: generateArchiveId(),
                 title,
                 messages: state.messages,
                 selectedCards: state.selectedCardsForChat,
@@ -403,27 +436,25 @@ export const useStore = create<AppState>((set, get) => ({
                 archivedAt: Date.now()
             };
 
-            // 获取现有归档
             const result = await chrome.storage.local.get([STORAGE_KEYS.CHAT_ARCHIVES]);
             const archives = result[STORAGE_KEYS.CHAT_ARCHIVES] || [];
 
-            // 添加新归档
             const newArchives = [archive, ...archives];
             await chrome.storage.local.set({
                 [STORAGE_KEYS.CHAT_ARCHIVES]: newArchives
             });
 
-            // 更新状态
             set({
                 chatArchives: newArchives,
                 messages: [],
                 selectedCardsForChat: []
             });
 
-            // 清空当前对话的持久化
             await chrome.storage.local.remove(STORAGE_KEYS.CURRENT_CHAT);
 
-            console.log('[Store] Chat archived:', archive.id);
+            get().updateStorageUsage();
+
+            console.log('[Store] Chat archived:', archive.id, 'Title:', title);
         } catch (error) {
             console.error('[Store] Error archiving chat:', error);
         }
@@ -453,24 +484,11 @@ export const useStore = create<AppState>((set, get) => ({
                 [STORAGE_KEYS.CHAT_ARCHIVES]: newArchives
             });
 
+            get().updateStorageUsage();
+
             console.log('[Store] Archive deleted:', archiveId);
         } catch (error) {
             console.error('[Store] Error deleting archive:', error);
-        }
-    },
-
-    exportArchive: (archiveId: string) => {
-        const state = get();
-        const archive = state.chatArchives.find(a => a.id === archiveId);
-
-        if (archive) {
-            const dataStr = JSON.stringify(archive, null, 2);
-            const dataUri = 'data:application/json;charset=utf-8,' + encodeURIComponent(dataStr);
-            const linkElement = document.createElement('a');
-            linkElement.setAttribute('href', dataUri);
-            linkElement.setAttribute('download', `chat_${archive.id}.json`);
-            linkElement.click();
-            console.log('[Store] Archive exported:', archiveId);
         }
     },
 
@@ -484,6 +502,43 @@ export const useStore = create<AppState>((set, get) => ({
         } catch (error) {
             console.error('[Store] Error loading archives:', error);
             set({ chatArchives: [] });
+        }
+    },
+
+    // === Settings Actions ===
+
+    resetCardNumbers: async () => {
+        try {
+            const state = get();
+            const cards = [...state.cards].sort((a, b) => a.timestamp - b.timestamp);
+
+            let nextNumber = 1;
+            const updatedCards = cards.map((card) => {
+                // Sample 卡片保持编号 0
+                if (card.id === SAMPLE_CARD_ID) {
+                    return { ...card, displayNumber: 0 };
+                }
+                const displayNumber = nextNumber;
+                nextNumber++;
+                return { ...card, displayNumber };
+            });
+
+            set({ cards: updatedCards });
+            await chrome.storage.local.set({ [STORAGE_KEYS.CARDS]: updatedCards });
+            await chrome.storage.local.set({ [STORAGE_KEYS.NEXT_DISPLAY_NUMBER]: nextNumber });
+        } catch (error) {
+            console.error('[Store] Error resetting card numbers:', error);
+        }
+    },
+
+    // === Storage Actions ===
+
+    updateStorageUsage: async () => {
+        try {
+            const bytesInUse = await chrome.storage.local.getBytesInUse(null);
+            set({ storageUsed: bytesInUse });
+        } catch (error) {
+            console.error('[Store] Error getting storage usage:', error);
         }
     },
 

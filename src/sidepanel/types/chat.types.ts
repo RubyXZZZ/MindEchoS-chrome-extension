@@ -1,6 +1,6 @@
 // types/chat.types.ts
 
-export type FunctionMode = 'understand' | 'compare' | 'quiz' | 'write' | 'chat';
+// export type FunctionMode = 'understand' | 'compare' | 'quiz' | 'write' | 'chat';
 
 export interface ChatMessage {
     id: string;
@@ -8,8 +8,7 @@ export interface ChatMessage {
     content: string;
     timestamp: number;
     mode: 'chat';
-    status?: 'pending' | 'accepted' | 'rejected';
-    rejectionReason?: string;
+    status?: 'pending' | 'accepted'| 'rejected';
     triggeredBy?: string;
 }
 

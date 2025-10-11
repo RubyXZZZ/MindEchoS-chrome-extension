@@ -1,6 +1,4 @@
 // components/chat/ChatMarkdownRenderer.tsx
-// 专门用于Chat消息的Markdown渲染器
-
 import React, { useState, useRef, useEffect } from 'react';
 import { MoveHorizontal, X } from 'lucide-react';
 
@@ -8,6 +6,7 @@ interface CardReference {
     id: string;
     title: string;
     content: string;
+    displayNumber: number;  // ← 添加 displayNumber
 }
 
 interface ChatMarkdownRendererProps {
@@ -25,7 +24,7 @@ export const ChatMarkdownRenderer: React.FC<ChatMarkdownRendererProps> = ({
     const [tooltipPosition, setTooltipPosition] = useState({ x: 0, y: 0 });
     const tooltipRef = useRef<HTMLDivElement>(null);
 
-    // 点击外部关闭 tooltip - 必须在任何条件判断之前
+    // 点击外部关闭 tooltip
     useEffect(() => {
         const handleClickOutside = (event: MouseEvent) => {
             if (tooltipRef.current && !tooltipRef.current.contains(event.target as Node)) {
@@ -51,37 +50,35 @@ export const ChatMarkdownRenderer: React.FC<ChatMarkdownRendererProps> = ({
         return null;
     }
 
-    const handleCardClick = (cardIndex: number, e: React.MouseEvent) => {
+    const handleCardClick = (card: CardReference, e: React.MouseEvent) => {
         e.stopPropagation();
 
-        if (cards && cards[cardIndex - 1]) {
-            if (clickedCard?.id === cards[cardIndex - 1].id) {
-                setClickedCard(null);
-                return;
-            }
-
-            const target = e.currentTarget as HTMLElement;
-            const rect = target.getBoundingClientRect();
-
-            let left = rect.left + rect.width / 2;
-            let top = rect.bottom + 8;
-
-            const tooltipWidth = 320;
-            if (left + tooltipWidth / 2 > window.innerWidth) {
-                left = window.innerWidth - tooltipWidth / 2 - 10;
-            }
-            if (left - tooltipWidth / 2 < 10) {
-                left = tooltipWidth / 2 + 10;
-            }
-
-            const tooltipMaxHeight = 200;
-            if (top + tooltipMaxHeight > window.innerHeight && rect.top > tooltipMaxHeight) {
-                top = rect.top - 8;
-            }
-
-            setTooltipPosition({ x: left, y: top });
-            setClickedCard(cards[cardIndex - 1]);
+        if (clickedCard?.id === card.id) {
+            setClickedCard(null);
+            return;
         }
+
+        const target = e.currentTarget as HTMLElement;
+        const rect = target.getBoundingClientRect();
+
+        let left = rect.left + rect.width / 2;
+        let top = rect.bottom + 8;
+
+        const tooltipWidth = 320;
+        if (left + tooltipWidth / 2 > window.innerWidth) {
+            left = window.innerWidth - tooltipWidth / 2 - 10;
+        }
+        if (left - tooltipWidth / 2 < 10) {
+            left = tooltipWidth / 2 + 10;
+        }
+
+        const tooltipMaxHeight = 200;
+        if (top + tooltipMaxHeight > window.innerHeight && rect.top > tooltipMaxHeight) {
+            top = rect.top - 8;
+        }
+
+        setTooltipPosition({ x: left, y: top });
+        setClickedCard(card);
     };
 
     const renderContent = (text: string): React.ReactNode => {
@@ -348,25 +345,24 @@ export const ChatMarkdownRenderer: React.FC<ChatMarkdownRendererProps> = ({
 
     return (
         <>
-            {/* Card References Bar */}
+            {/* Card References Bar - 使用 displayNumber */}
             {cards.length > 0 && (
                 <div className="flex flex-wrap items-center gap-1.5 mb-2 pb-2 border-b border-gray-100">
                     <span className="text-[10px] text-gray-500 font-medium">Context:</span>
-                    {cards.map((card, index) => {
-                        const cardNum = index + 1;
+                    {cards.map((card) => {
                         const isActive = clickedCard?.id === card.id;
 
                         return (
                             <button
                                 key={card.id}
-                                onClick={(e) => handleCardClick(cardNum, e)}
+                                onClick={(e) => handleCardClick(card, e)}
                                 className={`card-badge px-2 py-0.5 rounded text-[11px] font-medium border transition-all cursor-help ${
                                     isActive
-                                        ? 'bg-emerald-500 text-white border-emerald-600'
-                                        : 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100 hover:border-emerald-300'
+                                        ? 'bg-gray-700 text-white border-gray-800'
+                                        : 'bg-gray-100 text-gray-700 border-gray-300 hover:bg-gray-200 hover:border-gray-400'
                                 }`}
                             >
-                                Card {cardNum}
+                                Card {card.displayNumber}
                             </button>
                         );
                     })}
@@ -391,7 +387,7 @@ export const ChatMarkdownRenderer: React.FC<ChatMarkdownRendererProps> = ({
                 >
                     <div className="flex items-center justify-between bg-emerald-50 px-3 py-2 border-b border-emerald-200">
                         <div className="text-xs font-semibold text-emerald-900">
-                            {clickedCard.title}
+                            #{clickedCard.displayNumber} {clickedCard.title}
                         </div>
                         <button
                             onClick={() => setClickedCard(null)}

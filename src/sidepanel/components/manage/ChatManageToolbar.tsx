@@ -1,6 +1,6 @@
 // components/manage/ChatManageToolbar.tsx
 import React from 'react';
-import { History, Save, Download } from 'lucide-react';
+import { History, Folder } from 'lucide-react';
 import { useStore } from '../../store';
 
 interface ChatManageToolbarProps {
@@ -12,7 +12,6 @@ export const ChatManageToolbar: React.FC<ChatManageToolbarProps> = ({
                                                                     }) => {
     const {
         messages,
-        selectedCardsForChat,
         chatArchives,
         archiveCurrentChat,
         setCurrentView
@@ -24,69 +23,50 @@ export const ChatManageToolbar: React.FC<ChatManageToolbarProps> = ({
     const handleArchive = async () => {
         if (!hasMessages) return;
 
-        if (window.confirm('Archive this conversation? You can view it later in Settings.')) {
-            await archiveCurrentChat();
-            onActionComplete();
-        }
+        await archiveCurrentChat();
+        onActionComplete();
     };
 
-    const handleExport = () => {
-        if (!hasMessages) return;
 
-        const chatData = {
-            timestamp: new Date().toISOString(),
-            messages: messages,
-            selectedCards: selectedCardsForChat
-        };
-
-        const dataStr = JSON.stringify(chatData, null, 2);
-        const dataUri = 'data:application/json;charset=utf-8,' + encodeURIComponent(dataStr);
-        const linkElement = document.createElement('a');
-        linkElement.setAttribute('href', dataUri);
-        linkElement.setAttribute('download', `chat_export_${Date.now()}.json`);
-        linkElement.click();
-
-        console.log('[ChatManageToolbar] Chat exported');
-    };
 
     const handleViewHistory = () => {
-        // 设置打开 archives tab 的标记
+
         localStorage.setItem('openSettingsTab', 'archives');
         setCurrentView('settings');
         onActionComplete();
     };
 
     return (
-        <div className="mt-3 pt-3 border-t border-gray-200 flex justify-end">
-            <div className="flex gap-1">
+        <div className="mt-2 pt-2 border-t border-gray-200">
+            {/* Toolbar - 横向布局，拉长按钮 - 紧凑版 */}
+            <div className="flex items-center justify-center gap-1.5">
+                {/* History Button */}
                 <button
                     onClick={handleViewHistory}
-                    className="px-2 py-1 bg-purple-100 text-purple-700 text-xs rounded hover:bg-purple-200 flex items-center gap-1"
+                    className="flex items-center justify-center gap-1.5 px-2.5 py-1.5 bg-purple-100 text-purple-700 rounded-lg hover:bg-purple-200 transition-colors min-w-[70px] relative"
+                    title="View chat history"
                 >
-                    <History className="w-3 h-3" />
-                    History
+                    <History className="w-5 h-3.5" />
+                    <span className="text-xs font-medium">History</span>
                     {hasArchives && (
-                        <span className="ml-1 px-1.5 py-0.5 bg-purple-200 rounded text-[10px]">
+                        <span className="absolute -top-1 -right-1 min-w-[16px] h-4 px-1 bg-purple-500 text-white text-[9px] font-bold rounded-full flex items-center justify-center">
                             {chatArchives.length}
                         </span>
                     )}
                 </button>
+
+                {/* Archive Button */}
                 <button
                     onClick={handleArchive}
                     disabled={!hasMessages}
-                    className="px-2 py-1 bg-blue-100 text-blue-700 text-xs rounded hover:bg-blue-200 disabled:opacity-50 flex items-center gap-1"
+                    className="flex items-center justify-center gap-1.5 px-2.5 py-1.5 bg-blue-100 text-blue-700 rounded-lg hover:bg-blue-200 disabled:opacity-50 transition-colors min-w-[70px]"
+                    title="Archive current conversation"
                 >
-                    <Save className="w-3 h-3" />
-                    Archive
+                    <Folder className="w-5 h-3.5" />
+                    <span className="text-xs font-medium">Archive</span>
                 </button>
-                <button
-                    onClick={handleExport}
-                    disabled={!hasMessages}
-                    className="px-2 py-1 bg-green-100 text-green-700 text-xs rounded hover:bg-green-200 disabled:opacity-50 flex items-center gap-1"
-                >
-                    <Download className="w-3 h-3" />
-                    Export
-                </button>
+
+
             </div>
         </div>
     );

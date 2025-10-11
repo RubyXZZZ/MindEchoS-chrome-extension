@@ -3,13 +3,13 @@ import React, { useState, useMemo } from 'react';
 import { Layers, X, Search, CheckSquare, Square } from 'lucide-react';
 import { KnowledgeCard } from '../../types/card.types';
 import { useStore } from '../../store';
-import { ALL_CARDS_FILTER } from '../../utils/constants';
+import { ALL_CARDS_FILTER, SAMPLE_CARD_ID } from '../../utils/constants';
 
 interface ChatTopBarProps {
     selectedCards: KnowledgeCard[];
     allCards: KnowledgeCard[];
     selectedCardIds: string[];
-    onToggleCard: (cardId: string) => void;
+    onSelectionChange: (cardIds: string[]) => void;  // ← 改为直接设置
     onNewChat: () => void;
     isGenerating: boolean;
     isInitializing: boolean;
@@ -19,7 +19,7 @@ export const ChatTopBar: React.FC<ChatTopBarProps> = ({
                                                           selectedCards,
                                                           allCards,
                                                           selectedCardIds,
-                                                          onToggleCard,
+                                                          onSelectionChange,
                                                           onNewChat,
                                                           isGenerating,
                                                           isInitializing
@@ -41,7 +41,7 @@ export const ChatTopBar: React.FC<ChatTopBarProps> = ({
 
         // Add categories from existing cards
         allCards.forEach(card => {
-            if (card.id !== 'sample-card-1' && card.category) {
+            if (card.id !== SAMPLE_CARD_ID && card.category) {
                 allCategories.add(card.category);
             }
         });
@@ -52,7 +52,7 @@ export const ChatTopBar: React.FC<ChatTopBarProps> = ({
     // Filter cards based on search and category
     const filteredCards = useMemo(() => {
         return allCards.filter(card => {
-            if (card.id === 'sample-card-1') return false;
+            if (card.id === SAMPLE_CARD_ID) return false;
 
             // Category filter
             if (selectedCategory !== ALL_CARDS_FILTER && card.category !== selectedCategory) {
@@ -89,13 +89,8 @@ export const ChatTopBar: React.FC<ChatTopBarProps> = ({
     };
 
     const handleConfirm = () => {
-        // Apply temp selection to actual selection
-        const toAdd = tempSelectedIds.filter(id => !selectedCardIds.includes(id));
-        const toRemove = selectedCardIds.filter(id => !tempSelectedIds.includes(id));
-
-        toRemove.forEach(id => onToggleCard(id));
-        toAdd.forEach(id => onToggleCard(id));
-
+        // 直接设置最终选中状态（一次性更新）
+        onSelectionChange([...tempSelectedIds]);
         handleClose();
     };
 
@@ -126,13 +121,13 @@ export const ChatTopBar: React.FC<ChatTopBarProps> = ({
     return (
         <div className="flex-shrink-0 bg-white/80 backdrop-blur-sm border-b border-gray-200 px-3 py-2">
             <div className="flex items-center justify-between">
-                <div className="text-xs font-medium text-emerald-700">
+                <div className="text-sm  text-emerald-700">
                     AI Assistant
                 </div>
 
                 <button
                     onClick={handleOpen}
-                    className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-colors flex items-center gap-1.5 ${
+                    className={`px-3 py-1 text-sm rounded-lg transition-colors flex items-center gap-1.5 ${
                         selectedCards.length > 0
                             ? 'bg-emerald-500 text-white hover:bg-emerald-600 border border-emerald-600'
                             : 'text-emerald-600 hover:text-emerald-700 border border-emerald-200 hover:bg-emerald-50'
@@ -145,25 +140,22 @@ export const ChatTopBar: React.FC<ChatTopBarProps> = ({
                 <button
                     onClick={onNewChat}
                     disabled={isGenerating || isInitializing}
-                    className="px-3 py-1.5 text-xs font-medium text-gray-700 border border-gray-300 hover:bg-gray-50 rounded-lg transition-colors disabled:opacity-50"
+                    className="px-3 py-1 text-sm  text-gray-700 border border-gray-300 hover:bg-gray-50 rounded-lg transition-colors disabled:opacity-50"
                 >
                     + New Chat
                 </button>
             </div>
 
-            {/* Card Selector Dropdown - Fixed positioning for sidepanel */}
+            {/* Card Selector Dropdown */}
             {showSelector && (
                 <>
                     {/* Backdrop */}
-                    <div
-                        className="fixed inset-0 z-40"
-                        onClick={handleClose}
-                    />
+                    <div className="fixed inset-0 z-40" onClick={handleClose} />
 
                     {/* Dropdown */}
                     <div className="fixed top-12 left-2 right-2 bg-white rounded-xl shadow-2xl border border-gray-200 z-50 max-w-md mx-auto">
                         {/* Header with Search */}
-                        <div className="flex items-center gap-2 p-3 border-b border-gray-200">
+                        <div className="flex items-center gap-1.5 p-1.5 ">
                             <div className="relative flex-1">
                                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
                                 <input
@@ -171,7 +163,7 @@ export const ChatTopBar: React.FC<ChatTopBarProps> = ({
                                     placeholder="Search cards..."
                                     value={searchQuery}
                                     onChange={(e) => setSearchQuery(e.target.value)}
-                                    className="w-full pl-9 pr-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                                    className="w-full pl-9 pr-3 py-1.5 text-xs border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
                                 />
                             </div>
                             <button
@@ -183,7 +175,7 @@ export const ChatTopBar: React.FC<ChatTopBarProps> = ({
                         </div>
 
                         {/* Category Filter */}
-                        <div className="px-3 py-2 border-b border-gray-200">
+                        <div className="px-3 py-1.5 border-b border-gray-200">
                             <div className="flex flex-wrap gap-1.5">
                                 {categories.map(category => (
                                     <button
@@ -236,9 +228,17 @@ export const ChatTopBar: React.FC<ChatTopBarProps> = ({
                                                 />
                                                 <div className="flex-1 min-w-0">
                                                     <div className="flex items-center gap-2 mb-0.5">
+
+                                                        {card.displayNumber > 0 && (
+                                                            <span className="text-emerald-600 font-semibold text-xs flex-shrink-0">
+                                                                #{card.displayNumber}
+                                                            </span>
+                                                        )}
+
                                                         <p className="text-sm font-medium text-gray-900 truncate flex-1">
                                                             {card.title}
                                                         </p>
+
                                                         {card.category && (
                                                             <span className="text-[10px] px-1.5 py-0.5 bg-white rounded text-gray-600 flex-shrink-0">
                                                                 {card.category}

@@ -1,5 +1,5 @@
 import React from 'react';
-import { Layers, Settings2, X } from 'lucide-react';
+import { Settings, Settings2, X } from 'lucide-react';
 import { useStore } from '../../store';
 import { CardsManageToolbar } from '../manage/CardsManageToolbar';
 import { ChatManageToolbar } from '../manage/ChatManageToolbar';
@@ -17,22 +17,37 @@ export const NavigationBar: React.FC<NavigationBarProps> = ({
     const { currentView, setCurrentView } = useStore();
     const { isManageMode } = manageState;
 
+    // 记住上一个 cards/chat 视图（用于 settings 时保持标签位置）
+    const [lastContentView, setLastContentView] = React.useState<'cards' | 'chat'>('cards');
+
+    // 更新 lastContentView
+    React.useEffect(() => {
+        if (currentView === 'cards' || currentView === 'chat') {
+            setLastContentView(currentView);
+        }
+    }, [currentView]);
+
+    // 用于显示标签位置的视图（settings 时使用 lastContentView）
+    const displayView = currentView === 'settings' ? lastContentView : currentView;
+
     const handleLogoClick = () => {
-        console.log('[NavigationBar] Logo clicked, switching to settings');
+        // 只切换到 settings，不改变其他视图状态
         setCurrentView('settings');
 
-        // 退出管理模式
-        if (currentView === 'cards') {
-            onManageStateChange({
-                view: 'cards',
-                isManageMode: false,
-                selectedCards: []
-            });
-        } else if (currentView === 'chat') {
-            onManageStateChange({
-                view: 'chat',
-                isManageMode: false
-            });
+        // 退出 Manage 模式（如果正在 Manage）
+        if (isManageMode) {
+            if (currentView === 'cards') {
+                onManageStateChange({
+                    view: 'cards',
+                    isManageMode: false,
+                    selectedCards: []
+                });
+            } else if (currentView === 'chat') {
+                onManageStateChange({
+                    view: 'chat',
+                    isManageMode: false
+                });
+            }
         }
     };
 
@@ -99,55 +114,68 @@ export const NavigationBar: React.FC<NavigationBarProps> = ({
 
     return (
         <div className="bg-white/95 backdrop-blur-sm border-b border-gray-200/50">
-            <div className="px-4 py-3">
-                <div className="flex items-center justify-between">
-                    {/* Logo - 可点击进入 Settings */}
-                    <div
-                        className="flex items-center gap-3 cursor-pointer hover:opacity-75 transition-opacity"
+            <div className="px-3 py-1">
+                <div className="flex items-center gap-2">
+                    {/* Settings Button */}
+                    <button
                         onClick={handleLogoClick}
+                        className="p-1.5 text-gray-500 hover:text-gray-700 transition-colors flex-shrink-0"
                         title="Settings"
                     >
-                        <div className="w-8 h-8 rounded-lg bg-emerald-500 flex items-center justify-center">
-                            <Layers className="w-4 h-4 text-white" />
-                        </div>
-                        <h1 className="text-base font-semibold text-gray-900">知识卡片</h1>
-                    </div>
+                        <Settings className="w-4 h-4" />
+                    </button>
 
-                    {/* View Switcher */}
-                    <div className="flex items-center bg-gray-100 rounded-lg p-0.5">
+                    {/* Left Spacer */}
+                    <div className="flex-1" />
+
+                    {/* View Switcher - Compact */}
+                    <div className="relative bg-gray-200 rounded-lg p-[2px] flex flex-shrink-0">
+                        {/* Sliding Green Background */}
+                        <div
+                            className="absolute top-[2px] bottom-[2px] left-[2px] w-[68px] bg-emerald-500 rounded-md shadow-md transition-transform duration-300 ease-out"
+                            style={{
+                                transform: displayView === 'cards' ? 'translateX(0)' : 'translateX(68px)',
+                                willChange: 'transform'
+                            }}
+                        />
+
+                        {/* Buttons */}
                         <button
                             onClick={() => handleViewChange('cards')}
-                            className={`px-4 py-1.5 rounded-md text-xs font-medium transition-all ${
-                                currentView === 'cards'
-                                    ? 'bg-white text-gray-900 shadow-sm'
-                                    : 'text-gray-600 hover:text-gray-900'
+                            className={`relative z-10 w-[68px] py-1 rounded-md text-sm font-medium transition-colors duration-300 ${
+                                displayView === 'cards'
+                                    ? 'text-white'
+                                    : 'text-gray-700 hover:text-gray-900'
                             }`}
                         >
-                            知识卡片
+                            Cards
                         </button>
                         <button
                             onClick={() => handleViewChange('chat')}
-                            className={`px-4 py-1.5 rounded-md text-xs font-medium transition-all ${
-                                currentView === 'chat'
-                                    ? 'bg-white text-gray-900 shadow-sm'
-                                    : 'text-gray-600 hover:text-gray-900'
+                            className={`relative z-10 w-[68px] py-1.5 rounded-md text-sm font-medium transition-colors duration-300 ${
+                                displayView === 'chat'
+                                    ? 'text-white'
+                                    : 'text-gray-700 hover:text-gray-900'
                             }`}
                         >
-                            AI对话
+                            AI
                         </button>
                     </div>
+
+                    {/* Right Spacer */}
+                    <div className="flex-1" />
 
                     {/* Manage Button */}
                     <button
                         onClick={handleManageClick}
-                        className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-all flex items-center gap-1 ${
+                        className={`w-[76px] h-7 text-sm font-medium rounded-lg transition-all flex items-center justify-center gap-1 flex-shrink-0 ${
                             isManageMode
                                 ? 'bg-gray-800 text-white hover:bg-gray-900'
                                 : 'bg-emerald-500 text-white hover:bg-emerald-600'
                         }`}
                     >
                         {isManageMode ? (
-                            <><X className="w-3 h-3" /><span>取消</span></>
+                            <><X className="w-3 h-3" /><span>Cancel</span></>
                         ) : (
                             <><Settings2 className="w-3 h-3" /><span>Manage</span></>
                         )}

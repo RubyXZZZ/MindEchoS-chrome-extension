@@ -1,6 +1,8 @@
 // types/ai.types.ts
-// Chrome Summarizer API 类型定义 (Chrome 138+)
-// 基于官方文档：https://developer.chrome.com/docs/ai/summarizer-api
+// Chrome AI APIs Type Definitions (Chrome 138+)
+// Based on official docs:
+// - Summarizer API: https://developer.chrome.com/docs/ai/summarizer-api
+// - Prompt API: https://developer.chrome.com/docs/ai/prompt-api
 
 // ============= Summarizer API Types =============
 
@@ -13,6 +15,7 @@ export interface SummarizerOptions {
     type?: 'key-points' | 'tldr' | 'teaser' | 'headline';
     format?: 'markdown' | 'plain-text';
     length?: 'short' | 'medium' | 'long';
+    outputLanguage?: 'en' | 'es' | 'ja';
     monitor?: (m: SummarizerMonitor) => void;
 }
 
@@ -22,8 +25,6 @@ export interface SummarizerInstance {
     destroy(): void;
 }
 
-// ============= Result Types =============
-
 export interface SummarizeResult {
     success: boolean;
     title?: string;
@@ -31,14 +32,83 @@ export interface SummarizeResult {
     error?: string;
 }
 
+// ============= Prompt API Types =============
+
+export interface PromptAPIMonitor {
+    addEventListener(event: 'downloadprogress', callback: (e: { loaded: number; total: number }) => void): void;
+}
+
+export interface PromptSessionOptions {
+    temperature?: number;
+    topK?: number;
+    initialPrompts?: Array<{ role: string; content: string; prefix?: boolean }>;
+    signal?: AbortSignal;
+    monitor?: (m: PromptAPIMonitor) => void;
+    expectedInputs?: Array<{
+        type: 'text' | 'image' | 'audio';
+        languages?: string[];
+    }>;
+    expectedOutputs?: Array<{
+        type: 'text';
+        languages?: string[];
+    }>;
+}
+
+export interface PromptSession {
+    prompt(input: string, options?: {
+        signal?: AbortSignal;
+        responseConstraint?: any;
+        omitResponseConstraintInput?: boolean;
+    }): Promise<string>;
+    promptStreaming(input: string, options?: {
+        signal?: AbortSignal;
+        responseConstraint?: any;
+        omitResponseConstraintInput?: boolean;
+    }): AsyncIterable<string>;
+    append(messages: Array<{
+        role: 'system' | 'user' | 'assistant';
+        content: string | Array<{ type: string; value: any }>;
+    }>): Promise<void>;
+    destroy(): void;
+    clone(options?: { signal?: AbortSignal }): Promise<PromptSession>;
+    inputUsage?: number;
+    inputQuota?: number;
+}
+
+export interface LanguageModelParams {
+    defaultTopK: number;
+    maxTopK: number;
+    defaultTemperature: number;
+    maxTemperature: number;
+}
+
+export type AIAvailability = 'readily' | 'after-download' | 'no';
+
+// ============= Search AI Types =============
+
+export interface CardForSearch {
+    id: string;
+    displayNumber: number;
+    title: string;
+    content: string;
+}
+
 // ============= Global Declarations =============
 
 declare global {
+    // Summarizer API
     class Summarizer {
-        static availability(): Promise<'readily' | 'after-download' | 'no'>;
+        static availability(): Promise<AIAvailability>;
         static create(options?: SummarizerOptions): Promise<SummarizerInstance>;
+    }
+
+    // Prompt API
+    class LanguageModel {
+        static availability(): Promise<AIAvailability>;
+        static create(options?: PromptSessionOptions): Promise<PromptSession>;
+        static params(): Promise<LanguageModelParams>;
     }
 }
 
-// 导出空对象以确保文件被视为模块
+// Export empty object to ensure this file is treated as a module
 export {};

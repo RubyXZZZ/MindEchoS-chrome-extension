@@ -13,12 +13,6 @@ interface UsePromptAPIReturn {
         onChunk: (text: string) => void,
         signal?: AbortSignal
     ) => Promise<string>;
-    generateImprovement: (
-        originalResponse: string,
-        rejectionReason: string,
-        onChunk: (text: string) => void,
-        signal?: AbortSignal
-    ) => Promise<string>;
     destroySession: () => void;
 }
 
@@ -34,7 +28,6 @@ export function usePromptAPI(): UsePromptAPIReturn {
                 const ai = PromptAI.getInstance();
                 const availability = await ai.checkAvailability();
                 setIsAvailable(availability !== 'no');
-                console.log('[usePromptAPI] Availability:', availability);
             } catch (error) {
                 console.error('[usePromptAPI] Check failed:', error);
                 setIsAvailable(false);
@@ -56,17 +49,14 @@ export function usePromptAPI(): UsePromptAPIReturn {
                 ? selectedCards.map(card => ({
                     title: card.title || 'Untitled',
                     content: card.content || '',
-                    url: card.url || ''
+                    url: card.url || '',
+                    displayNumber: card.displayNumber || 0
                 }))
                 : [];
 
-            console.log('[usePromptAPI] Initializing session');
-            console.log('[usePromptAPI] Cards count:', simplifiedCards.length);
-
-            const success = await ai.createSession(simplifiedCards);
-            return success;
+            return await ai.createSession(simplifiedCards);
         } catch (error) {
-            console.error('[usePromptAPI] Init session failed:', error);
+            console.error('[usePromptAPI] Init failed:', error);
             return false;
         }
     }, []);
@@ -83,42 +73,22 @@ export function usePromptAPI(): UsePromptAPIReturn {
         setIsGenerating(true);
         try {
             const ai = PromptAI.getInstance();
-            const result = await ai.sendMessageStreaming(message, onChunk, signal);
-            return result;
-        } catch (error: any) {
+            return await ai.sendMessageStreaming(message, onChunk, signal);
+        } catch (err) {
+            const error = err as Error;
             if (error.name === 'AbortError' || signal?.aborted) {
-                console.log('[usePromptAPI] Generation aborted');
                 throw new Error('Aborted');
             }
-            console.error('[usePromptAPI] Send message failed:', error);
+            console.error('[usePromptAPI] Send failed:', error);
             throw error;
         } finally {
             setIsGenerating(false);
         }
     }, [isAvailable]);
 
-    const generateImprovement = useCallback(async (
-        originalResponse: string,
-        rejectionReason: string,
-        onChunk: (text: string) => void,
-        signal?: AbortSignal
-    ): Promise<string> => {
-        const improvePrompt = `The user rejected your previous response with the following feedback:
-
-"${rejectionReason}"
-
-Your previous response was:
-"${originalResponse}"
-
-Please provide an improved response that addresses their concerns.`;
-
-        return await sendMessage(improvePrompt, onChunk, signal);
-    }, [sendMessage]);
-
     const destroySession = useCallback(() => {
         const ai = PromptAI.getInstance();
         ai.destroySession();
-        console.log('[usePromptAPI] Session destroyed');
     }, []);
 
     return {
@@ -127,7 +97,6 @@ Please provide an improved response that addresses their concerns.`;
         isGenerating,
         initializeSession,
         sendMessage,
-        generateImprovement,
         destroySession
     };
 }

@@ -2,14 +2,19 @@ import React, { useEffect, useState } from 'react';
 import { useStore } from './sidepanel/store';
 import { NavigationBar } from './sidepanel/components/layout/NavigationBar';
 import { AddCardModal } from './sidepanel/components/modals/AddCardModal';
-import { DeleteCategoryModal } from './sidepanel/components/modals/DeleteCategoryModal';
 import { CardsView } from './sidepanel/views/CardsView';
 import { ChatView } from './sidepanel/views/ChatView';
-import { SettingsView } from './sidepanel/views/SettingsView';  // 已有导入
+import { SettingsView } from './sidepanel/views/SettingsView';
 import type { ManageState } from './sidepanel/types/manage.types';
 
 function App() {
-    const { currentView, cards, initialize, loadStore, checkForPendingSelection } = useStore();
+    const {
+        currentView,
+        cards,
+        initialize,
+        loadStore,
+        checkForPendingSelection
+    } = useStore();
     const [isLoading, setIsLoading] = useState(true);
 
     const [manageState, setManageState] = useState<ManageState>({
@@ -68,7 +73,7 @@ function App() {
             <div className="h-screen flex items-center justify-center bg-gray-50">
                 <div className="text-center">
                     <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-emerald-500 mx-auto"></div>
-                    <p className="mt-4 text-gray-600">加载中...</p>
+                    <p className="mt-4 text-gray-600">Loading...</p>
                 </div>
             </div>
         );
@@ -82,8 +87,9 @@ function App() {
             />
 
             <div className="flex-1 overflow-hidden relative">
-                {/* 改用独立的条件渲染 */}
-                {currentView === 'cards' && (
+                <div
+                    className={`h-full ${currentView === 'cards' ? 'block' : 'hidden'}`}
+                >
                     <CardsView
                         manageModeState={manageState.view === 'cards' ? {
                             isManageMode: manageState.isManageMode,
@@ -94,15 +100,24 @@ function App() {
                         }}
                         onCardSelect={handleCardSelect}
                     />
-                )}
+                </div>
 
-                {currentView === 'chat' && <ChatView />}
+                <div
+                    className={`h-full ${currentView === 'chat' ? 'block' : 'hidden'}`}
+                >
+                    <ChatView />
+                </div>
 
-                {currentView === 'settings' && <SettingsView />}  {/* 新增 */}
+                <div
+                    className={`h-full ${currentView === 'settings' ? 'block' : 'hidden'}`}
+                >
+                    <SettingsView />
+                </div>
             </div>
 
             <AddCardModal />
-            <DeleteCategoryModal />
+
+
 
             {process.env.NODE_ENV === 'development' && (
                 <div className="fixed bottom-2 left-2 bg-black/80 text-white text-xs px-2 py-1 rounded-lg z-50">
