@@ -115,6 +115,7 @@ export class PromptAI {
         }
     }
 
+    // Session
     async createSession(
         cards: Array<{ title: string; content: string; url?: string; displayNumber: number }> = []
     ): Promise<boolean> {

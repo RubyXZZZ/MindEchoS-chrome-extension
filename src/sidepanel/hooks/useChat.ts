@@ -1,3 +1,5 @@
+// Manages AI chat state, session lifecycle, and message handling
+
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { useStore } from '../store';
 import { usePromptAPI } from './usePromptAPI';
@@ -33,20 +35,20 @@ export function useChat() {
 
     const selectedCards = cards.filter(c => selectedCardsForChat.includes(c.id));
 
-
+    // Load persisted chat on mount
     useEffect(() => {
         loadCurrentChat();
-    }, []);
+    }, [loadCurrentChat]);
 
-
+    // Auto-save chat when messages update
     useEffect(() => {
         const hasPendingMsg = messages.some(m => m.status === 'pending');
         if (messages.length > 0 && !hasPendingMsg) {
             saveCurrentChat();
         }
-    }, [messages, selectedCardsForChat]);
+    }, [messages, selectedCardsForChat, saveCurrentChat]);
 
-    // Session 初始化
+    // Initialize or update AI session when card selection changes
     useEffect(() => {
         const initSession = async () => {
             if (!isAvailable) {
@@ -54,7 +56,7 @@ export function useChat() {
                 return;
             }
 
-            // 创建副本再排序，避免修改原数组
+            // Create copy before sorting to avoid state mutation
             const currentCardsKey = JSON.stringify([...selectedCardsForChat].sort());
 
             if (lastInitCardsRef.current === currentCardsKey && sessionReady) {
@@ -76,23 +78,23 @@ export function useChat() {
         };
 
         initSession();
-    }, [isAvailable, selectedCardsForChat]);
+    }, [isAvailable, selectedCardsForChat, sessionReady, initializeSession, selectedCards]);
 
-    // 组件卸载时销毁
+    // Cleanup session on unmount
     useEffect(() => {
         return () => {
             destroySession();
         };
-    }, []);
+    }, [destroySession]);
 
-    // 自动滚动
+    // Auto-scroll to newest message
     useEffect(() => {
         if (autoScroll) {
             messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
         }
     }, [messages, autoScroll]);
 
-    // Write 菜单外部点击
+    // Close Write menu on outside click
     useEffect(() => {
         const handleClickOutside = (e: MouseEvent) => {
             const target = e.target as HTMLElement;
@@ -122,7 +124,6 @@ export function useChat() {
         );
     }, [selectedCardsForChat, setSelectedCardsForChat]);
 
-    // 直接设置卡片选择（用于批量操作）
     const setCardsSelection = useCallback((cardIds: string[]) => {
         setSelectedCardsForChat(cardIds);
     }, [setSelectedCardsForChat]);
@@ -135,7 +136,7 @@ export function useChat() {
             clearMessages();
             setSelectedCardsForChat([]);
         }
-    }, [isGenerating, messages.length]);
+    }, [isGenerating, messages.length, clearMessages, setSelectedCardsForChat]);
 
     const handleDeleteAndNew = useCallback(async () => {
         setShowNewChatDialog(false);
@@ -196,6 +197,7 @@ export function useChat() {
         }
 
         if (displayMessage && aiPrompt) {
+            // Add user message
             addMessage({
                 id: Date.now().toString(),
                 role: 'user',
@@ -204,6 +206,7 @@ export function useChat() {
                 mode: 'chat'
             });
 
+            // Add pending AI response
             const aiMsgId = (Date.now() + 1).toString();
             addMessage({
                 id: aiMsgId,
@@ -231,8 +234,8 @@ export function useChat() {
                 } else {
                     updateMessage(aiMsgId, { content: 'Error: No content', status: 'rejected' });
                 }
-            } catch (error: any) {
-                if (error.message !== 'Aborted') {
+            } catch (error) {
+                if (error instanceof Error && error.message !== 'Aborted') {
                     updateMessage(aiMsgId, { content: 'Error: Failed to generate', status: 'rejected' });
                 }
             } finally {
@@ -286,8 +289,8 @@ export function useChat() {
             } else {
                 updateMessage(aiMsgId, { content: 'Error: No content', status: 'rejected' });
             }
-        } catch (error: any) {
-            if (error.message !== 'Aborted') {
+        } catch (error) {
+            if (error instanceof Error && error.message !== 'Aborted') {
                 updateMessage(aiMsgId, { content: 'Error: Failed to generate', status: 'rejected' });
             }
         } finally {
@@ -334,8 +337,8 @@ export function useChat() {
             } else {
                 updateMessage(aiMsgId, { content: 'Error: No content', status: 'rejected' });
             }
-        } catch (error: any) {
-            if (error.message !== 'Aborted') {
+        } catch (error) {
+            if (error instanceof Error && error.message !== 'Aborted') {
                 updateMessage(aiMsgId, { content: 'Error: Failed to generate', status: 'rejected' });
             }
         } finally {
@@ -360,7 +363,7 @@ export function useChat() {
     }, [messages]);
 
     return {
-        // 状态
+        // State
         messages,
         selectedCards,
         selectedCardIds: selectedCardsForChat,
