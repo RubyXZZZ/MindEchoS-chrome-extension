@@ -214,6 +214,7 @@ ${cardContext}`;
                 throw new Error('No content generated');
             }
 
+
             return accumulatedText;
         } catch (err) {
             const error = err as Error;
